@@ -1,0 +1,6 @@
+;STARTUPBEGINS
+G90;
+G92 E0;reset extruder length
+G1 X-90Y50{Z} E140 F800; Feed filament into hotend
+G92 E0;reset extruder length
+;STARTUPENDS

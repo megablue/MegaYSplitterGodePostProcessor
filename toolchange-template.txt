@@ -1,0 +1,45 @@
+;Toolchange begins
+G91;
+G1 Z5 F4800; Lift the nozzle 10mm up
+
+G90;
+G1 {XY} F4800;
+
+M6 T0; Switch to hotend T0 to turn off
+M104 T0 S0; Turn off hotend
+
+M6 T{OLDTOOL}; Switch to old tool
+
+G92 E0;
+G1 E3 F60; Push 3mm back slowly
+
+G92 E0;
+G1 E-2 F60; Retract 2mm back slowly
+
+G92 E0;
+G1 E2 F60; Push 2mm slowly
+
+G92 E0;
+G1 E-13 F120; Retract 3mm back slowly
+
+G4 S5; Wait 5 seconds
+
+G92 E0;
+G1 E-123.0 F1800; Retract fast to Y junction
+
+M6 T0; Switch to hotend T0 to heat up
+M109 S245; Wait hotend to 245C
+
+M6 T{NEWTOOL}; Switch to new tool
+
+G90;
+G92 E0;
+
+G1 E139 F800; Feed filament into hotend
+
+G91;
+G1 Z-5 F1800;
+
+G90;
+G92 E0;
+;Toolchange ends
