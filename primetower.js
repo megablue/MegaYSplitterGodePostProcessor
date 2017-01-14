@@ -1,8 +1,8 @@
 var fs = require("fs");
 var fd = fs.openSync('./primetower.gcode', 'w');
 
-var linewidth = 0.48, 
-    filamentpermm = (0.01662945).toFixed(5), //.1 layer height
+var linewidth = 0.48, //constant 
+    filamentpermm = (0.01662945).toFixed(5), //constant, based on .1 layer height
     extrusionMultipler = 1,
     layerheight = 0.2,
     firstlayerheight = 0.2,
@@ -10,8 +10,8 @@ var linewidth = 0.48,
     zOffset = 0.1,
     towerwidth = 4.8, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
     towerlength = 90, //always fulfill the tower length
-    bridges = 3,
-    bridgehead = 0.96,
+    bridges = 4,
+    bridgehead = 0.96, //the minimum width of a bridgehead is 2xlinewidth 
     speed = 3000,
     firslayerspeed = 1200,
     currentlayerspeed = 600,
@@ -117,6 +117,11 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 	}
 
 	for(var oddity = 0; x <= towerwidth || e < filamentToBePurged; x += linewidth, oddity++){
+		if(e > filamentToBePurged){
+			console.log("Purging length accomplished!");
+			break;
+		}
+
 		if(x==0 && !savingMode){
 			// console.log("here11");
 			// fs.appendFileSync(fd, ";here11\n");
@@ -206,17 +211,24 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 		}
 	}
 
-	drawX = drawX * 1;
-	drawE = drawE * 1;
-
 	if(wipe > 1){
 		retraction = Math.floor(retraction / wipe);
 	}
 
+	var wipeY = originY;
+
+	if( Math.abs(originY - drawY) > Math.abs(towerlength + originY - drawY) ){
+		console.log("closer to -Y");
+		wipeY = originY + towerlength - linewidth;
+	} else {
+		wipeY = wipeY + linewidth;
+		console.log("closer to +Y");
+	}
+
 	for(var w=0; w < wipe; w++){
-		console.log('wipe');
-		drawUntil( drawX + linewidth - towerwidth, drawY,  drawE + retraction, currentlayerspeed);
-		drawUntil( drawX, drawY,  drawE + retraction, currentlayerspeed);
+		console.log('wipe #' + w);
+		drawUntil( originX, wipeY,  drawE + retraction, currentlayerspeed);
+		drawUntil( originX + towerwidth, wipeY,  drawE + retraction, currentlayerspeed);
 	}
 
 	function drawUntil(x, y, e, speed, comment){
@@ -277,6 +289,6 @@ var isFirstLayer = true;
 
 primeTower(isFirstLayer, -85, 0, 0, 0);
 currentlayerheight += layerheight;
-primeTower(!isFirstLayer, -85, 0, 0, 1);
+primeTower(!isFirstLayer, -85, 0, 0, 31);
 
 
