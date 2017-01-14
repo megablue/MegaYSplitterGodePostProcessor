@@ -5,13 +5,13 @@ var linewidth = 0.48,
     filamentpermm = (0.01662945).toFixed(5), //.1 layer height
     extrusionMultipler = 1,
     layerheight = 0.2,
-    firstlayerheight = 0.3,
+    firstlayerheight = 0.2,
     currentlayerheight = firstlayerheight,
     zOffset = 0.1,
-    towerwidth = 3.84, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
+    towerwidth = 5.28, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
     towerlength = 90, //always fulfill the tower length
-    bridges = 3,
-    bridgehead = 2.4,
+    bridges = 2,
+    bridgehead = 0.96,
     speed = 3000,
     firslayerspeed = 1200,
     currentlayerspeed = 600,
@@ -55,7 +55,7 @@ if(centeriszero){
 function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilamentLength){
 
 	if(isFirstLayer){
-		currentlayerheight = firstlayerheight + zOffset;
+		currentlayerheight = (firstlayerheight + zOffset).toFixed(3) * 1;
 		currentlayerspeed = firslayerspeed;
 	} else {
 		currentlayerspeed = speed;
@@ -110,7 +110,7 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 		}
 	}
 
-	for(var oddity = 0;x < towerwidth || e < filamentToBePurged; x += linewidth, oddity++){
+	for(var oddity = 0; x <= towerwidth || e < filamentToBePurged; x += linewidth, oddity++){
 		if(x==0 && !savingMode){
 			// console.log("here11");
 			// fs.appendFileSync(fd, ";here11\n");
@@ -151,7 +151,6 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 			drawUntil(drawX, drawY, drawE, currentlayerspeed);
 		} else{
 			if(oddity % 2 == 0){
-				console.log("Odd");
 				for(var i = totalBridgeHeads -1; i > 0; i--){
 					var drawX = ((x + originX).toFixed(3)),
 						drawY = ((bridgeLength * i + bridgehead * i + originY - linewidth/2).toFixed(3)),
@@ -169,7 +168,6 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 						console.log("Reverse E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 				}
 			} else {
-				console.log("Even");
 				for(var i = 0; i < totalBridgeHeads - 1; i++){
 					var drawX = ((x + originX).toFixed(3)),
 						drawY = ((bridgeLength * i + bridgehead * (i+1) + originY - linewidth/2).toFixed(3)),
@@ -187,9 +185,13 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 			}
 		}
 
-		if(e > filamentToBePurged && x >= (towerwidth - linewidth)){
+		if(e > filamentToBePurged && x > (towerwidth - linewidth)){
 			console.log("end");
-			towerwidth = x;
+
+			if(isFirstLayer){
+				towerwidth = x;
+			}
+
 			drawX = drawX * 1;
 			drawE = drawE * 1;
 
@@ -224,7 +226,13 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 	}
 
 	function getExtrusionLength(distance){
-		eLength = ((filamentpermm * currentlayerheight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
+
+		if(isFirstLayer){
+			eLength = ((filamentpermm * firstlayerheight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
+		} else {
+			eLength = ((filamentpermm * layerheight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
+		}
+		
 		return eLength;
 	}
 
@@ -250,7 +258,12 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 
 var isFirstLayer = true;
 
+// primeTower(isFirstLayer, -85, 0, 0, 0);
+// currentlayerheight += layerheight;
+// primeTower(!isFirstLayer, 0, 85, 90, 0);
+
 primeTower(isFirstLayer, -85, 0, 0, 0);
-//primeTower(0,  85, 90, 0);
+currentlayerheight += layerheight;
+primeTower(!isFirstLayer, -85, 0, 0, 0);
 
 
