@@ -8,9 +8,9 @@ var linewidth = 0.48,
     firstlayerheight = 0.2,
     currentlayerheight = firstlayerheight,
     zOffset = 0.1,
-    towerwidth = 5.28, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
+    towerwidth = 4.8, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
     towerlength = 90, //always fulfill the tower length
-    bridges = 2,
+    bridges = 3,
     bridgehead = 0.96,
     speed = 3000,
     firslayerspeed = 1200,
@@ -73,6 +73,8 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 		savingMode = false,
 		flowRate = 1; 
 
+	console.log("minimum filament to be purged: " + filamentToBePurged);
+
 	if(infillableFilamentLength > 0){
 		savingMode = true;
 	}
@@ -81,23 +83,27 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 	fs.appendFileSync(fd, "G1 F1500 E" + prime + "\n"); // prime a little
 	fs.appendFileSync(fd, "G92 E0\n"); // zeroing e length.
 
+	var drawX = 0,
+		drawY = 0,
+		drawE = 0;
+
 	//with saving mode we will generate bridgeheads 
 	if(savingMode){
 		console.log("savingMode detected");
 		for(var i = 0; i < totalBridgeHeads; i++){
 			for(var b = 0, c = 0; b <= bridgehead; b += linewidth, c++){
 				console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
-				var drawX = ((originX + towerwidth - linewidth).toFixed(3)),
-					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
-					drawE = (e).toFixed(5);
-					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
+				drawX = ((originX + towerwidth - linewidth).toFixed(3)),
+				drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
+				drawE = (e).toFixed(5);
+				drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
 				e += getExtrusionLength(towerwidth);
 
 				console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
-				var drawX = ((originX).toFixed(3)),
-					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
-					drawE = (e).toFixed(5);
-					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
+				drawX = ((originX).toFixed(3)),
+				drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
+				drawE = (e).toFixed(5);
+				drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
 
 				if( !(i == totalBridgeHeads - 1 && b == bridgehead - linewidth)){
 					e += getExtrusionLength(towerwidth);
@@ -115,10 +121,10 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 			// console.log("here11");
 			// fs.appendFileSync(fd, ";here11\n");
 		    console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
-			var drawX = ((x + originX + towerwidth - linewidth).toFixed(3)),
-				drawY = ((y + originY).toFixed(3)),
-				drawE = (e).toFixed(5);
-				drawUntil(drawX, drawY, drawE, currentlayerspeed, "set starting point");
+			drawX = ((x + originX + towerwidth - linewidth).toFixed(3)),
+			drawY = ((y + originY).toFixed(3)),
+			drawE = (e).toFixed(5);
+			drawUntil(drawX, drawY, drawE, currentlayerspeed, "set starting point");
 			e += getExtrusionLength(towerwidth);	
 		}
 
@@ -127,12 +133,12 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 			// fs.appendFileSync(fd, ";Here\n");
 			e += getExtrusionLength(towerwidth);
 		    console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
-			var drawX = ((x + originX + towerwidth).toFixed(3)),
-				drawY = ((y + originY + towerlength - linewidth).toFixed(3)),
-				drawE = (e).toFixed(5);
-				drawUntil(drawX - linewidth *2, drawY, drawE, currentlayerspeed, "draw second outline");
-				drawUntil(drawX-towerwidth, drawY, drawE, currentlayerspeed);
-				e += getExtrusionLength(towerlength);
+			drawX = ((x + originX + towerwidth).toFixed(3)),
+			drawY = ((y + originY + towerlength - linewidth).toFixed(3)),
+			drawE = (e).toFixed(5);
+			drawUntil(drawX - linewidth *2, drawY, drawE, currentlayerspeed, "draw second outline");
+			drawUntil(drawX-towerwidth, drawY, drawE, currentlayerspeed);
+			e += getExtrusionLength(towerlength);
 		}
 
 		if(!savingMode){
@@ -145,65 +151,72 @@ function primeTower(isFirstLayer, offsetX, offsetY, rotation, infillableFilament
 			e += getExtrusionLength(towerlength);
 			console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 
-			var drawX = ((x + originX).toFixed(3)),
-				drawY = ((y + originY + towerlength - linewidth).toFixed(3)),
-				drawE = (e).toFixed(5);
+			drawX = ((x + originX).toFixed(3)),
+			drawY = ((y + originY + towerlength - linewidth).toFixed(3)),
+			drawE = (e).toFixed(5);
 			drawUntil(drawX, drawY, drawE, currentlayerspeed);
 		} else{
 			if(oddity % 2 == 0){
 				for(var i = totalBridgeHeads -1; i > 0; i--){
-					var drawX = ((x + originX).toFixed(3)),
-						drawY = ((bridgeLength * i + bridgehead * i + originY - linewidth/2).toFixed(3)),
-						drawE = (e).toFixed(5);
-						drawUntil(drawX, drawY, drawE, currentlayerspeed, "reversing start");
+					drawX = ((x + originX).toFixed(3)),
+					drawY = ((bridgeLength * i + bridgehead * i + originY - linewidth/2).toFixed(3)),
+					drawE = (e).toFixed(5);
+					drawUntil(drawX, drawY, drawE, currentlayerspeed, "reversing start");
 
-						e += getExtrusionLength(bridgeLength * (i-1) + bridgehead * (i) + originY + linewidth/2);
+					e += getExtrusionLength(bridgeLength + linewidth);
 
-						drawX = ((x + originX).toFixed(3)),
-						drawY = ((bridgeLength * (i-1) + bridgehead * (i) + originY - linewidth/2).toFixed(3)),
-						drawE = (e).toFixed(5);
+					drawX = ((x + originX).toFixed(3)),
+					drawY = ((bridgeLength * (i-1) + bridgehead * (i) + originY - linewidth/2).toFixed(3)),
+					drawE = (e).toFixed(5);
 
-						drawUntil(drawX, drawY, drawE, currentlayerspeed, "i =" + i);
+					drawUntil(drawX, drawY, drawE, currentlayerspeed, "i =" + i);
 
-						console.log("Reverse E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+					console.log("Reverse E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 				}
 			} else {
 				for(var i = 0; i < totalBridgeHeads - 1; i++){
-					var drawX = ((x + originX).toFixed(3)),
-						drawY = ((bridgeLength * i + bridgehead * (i+1) + originY - linewidth/2).toFixed(3)),
-						drawE = (e).toFixed(5);
-						drawUntil(drawX, drawY, drawE, currentlayerspeed);
+					drawX = ((x + originX).toFixed(3)),
+					drawY = ((bridgeLength * i + bridgehead * (i+1) + originY - linewidth/2).toFixed(3)),
+					drawE = (e).toFixed(5);
+					drawUntil(drawX, drawY, drawE, currentlayerspeed);
 
-						e += getExtrusionLength(bridgeLength * (i+1) + bridgehead * (i+1) + originY + linewidth/2);
+					e += getExtrusionLength(bridgeLength + linewidth);
 
-						drawX = ((x + originX).toFixed(3)),
-						drawY = ((bridgeLength * (i+1) + bridgehead * (i+1) + originY + linewidth/2).toFixed(3)),
-						drawE = (e).toFixed(5);
-						drawUntil(drawX, drawY, drawE, currentlayerspeed, "i =" + i);
-						console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+					drawX = ((x + originX).toFixed(3)),
+					drawY = ((bridgeLength * (i+1) + bridgehead * (i+1) + originY + linewidth/2).toFixed(3)),
+					drawE = (e).toFixed(5);
+					drawUntil(drawX, drawY, drawE, currentlayerspeed, "i =" + i);
+					console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 				}
 			}
 		}
 
-		if(e > filamentToBePurged && x > (towerwidth - linewidth)){
+		console.log("e > filamentToBePurged: " + (e > filamentToBePurged));
+		console.log("x > (towerwidth - linewidth): " + (x > (towerwidth - linewidth)));
+		console.log("x: " + x * 1);
+		console.log("(towerwidth - linewidth): " + (towerwidth - linewidth) *1);
+
+		if(e > filamentToBePurged && x *1 >= (towerwidth - linewidth) * 1){
 			console.log("end");
 
 			if(isFirstLayer){
-				towerwidth = x;
-			}
-
-			drawX = drawX * 1;
-			drawE = drawE * 1;
-
-			if(wipe > 1){
-				retraction = Math.floor(retraction / wipe);
-			}
-
-			for(var w=0; w < wipe; w++){
-				drawUntil( drawX + linewidth - towerwidth, drawY,  drawE + retraction, currentlayerspeed);
-				drawUntil( drawX, drawY,  drawE + retraction, currentlayerspeed);
+				towerwidth = x.toFixed(2) * 1 + linewidth;
+				console.log("towerwidth: " + towerwidth);
 			}
 		}
+	}
+
+	drawX = drawX * 1;
+	drawE = drawE * 1;
+
+	if(wipe > 1){
+		retraction = Math.floor(retraction / wipe);
+	}
+
+	for(var w=0; w < wipe; w++){
+		console.log('wipe');
+		drawUntil( drawX + linewidth - towerwidth, drawY,  drawE + retraction, currentlayerspeed);
+		drawUntil( drawX, drawY,  drawE + retraction, currentlayerspeed);
 	}
 
 	function drawUntil(x, y, e, speed, comment){
@@ -264,6 +277,6 @@ var isFirstLayer = true;
 
 primeTower(isFirstLayer, -85, 0, 0, 0);
 currentlayerheight += layerheight;
-primeTower(!isFirstLayer, -85, 0, 0, 0);
+primeTower(!isFirstLayer, -85, 0, 0, 1);
 
 
