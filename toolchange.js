@@ -1,7 +1,17 @@
 console.log("Mega YSplitter Gcode Post Processor v1.0");
 
-var args = process.argv.slice(2),
-    filename = args.join([separator = ' ']);
+var args = process.argv,
+    filename = '';
+
+for(var i = 0, parts = []; i < args.length; i++){
+	parts = args[i].split('.');
+
+	if(parts.length > 0){
+		if(parts[parts.length-1].toLowerCase() == 'gcode' || parts[parts.length-1].toLowerCase() == 'gco'){
+			filename = args[i];
+		}
+	}
+}
 
 if(filename.length == 0){
 	console.log("Please provide the path and filename for the gcode you want to processs. eg: node toolchange.js 3dbenchy.gcode");
@@ -101,38 +111,93 @@ function processToolchange(){
 function gatherInformation(){
 	var lr = new LineByLineReader(filename);
 		startupGcodeMarker = /^;end of startup gcode$/i,
-		layerChangeMarker = /^;.*layer+/i,
-		layerHeightMarker = /^;\s{3}layerHeight,(\d+\.\d+)/;
+		slicerSettingMarker = /^;\s{3}(\w+),(.*)/,
+		slicerSettingLinesCount = 0,
+		slicerSettingLinesLimit = 200,
+		slicerSettingStarted = false,
+		slicerSettingParsed = false,
+		toolChangeMarker = /^T(\d+)$/,
+		layerChangeMarker = /^;.*layer+/i;
 
 	var firstLayerDetected = false,
 		numberOfTools = 1,
-		layersInfo = {},
-		layerHeight = 0.2,
+		toolchangeDetected = false,
+		layersInfo = [],
+		layerHeight = 0,
 		layerHeightDetected = false,
-		layerCounter = 0;
+		firstLayerHeightPercentage = 0,
+		firstLayerHeightPercentageDetected = false,
+		layerIndex = -1;
 
-	lr.on('line', function (line) {
-		var newLayerMatched = line.match(layerChangeMarker),
-			layerHeightMatched = !layerHeightDetected ? line.match(layerHeightMarker) : false;
+	var lineProcessGcode = function (line){
+		var toolChangeMatched = line.match(toolChangeMarker),
+			newLayerMatched = line.match(layerChangeMarker);
 
-		if(layerHeightMatched){
-			console.log("layerHeight: " + layerHeightMatched[1]);
-			layerHeight = layerHeightMatched[1];
-			layerHeightDetected = true;
-		}
+		if(toolChangeMatched)
 
 		if(newLayerMatched){
 
 			if(!firstLayerDetected){
+				layerIndex = 0;
 				firstLayerDetected = true;
-				console.log("First layer detected! Layer Count: " + layerCounter);
-			} else {
-				//console.log("New layer detected! Layer Count: " + layerCounter);
 			}
 
-			++layerCounter;
+			console.log("New layer detected! Layer Count: " + layerIndex);
+			layersInfo[layerIndex] = {};
+			layerIndex++;
 		}
-	});
+	}
+
+	var lineProcessSlicerSettings = function (line){
+		var layerHeightMarker = /^;\s{3}layerHeight,(\d+\.\d+)/;
+		firstLayerHeightPercentageMarker = /^;\s{3}firstLayerHeightPercentage\,(\d+\.{0,}\d{0,})/;
+
+		if(!slicerSettingParsed && slicerSettingLinesCount > slicerSettingLinesLimit){
+			console.log("Error: unable to determine slicer settings after " + slicerSettingLinesCount + " lines parsed.");
+			// probably due the bug in line-by-line, 
+			// pause() have to be executed before close() otherwise it will continues to run
+			lr.pause(); 
+			lr.close();
+		}
+
+		var slicerSettingMatched = line.match(slicerSettingMarker);
+
+		if(slicerSettingMatched){
+			//console.log(slicerSettingMatched);
+			slicerSettingStarted = true;
+
+			if(slicerSettingMatched[1] == 'layerHeight'){
+				layerHeight = slicerSettingMatched[2] * 1;
+				layerHeightDetected = true;
+				console.log("layerHeight: " + layerHeight );
+			}
+
+			if(slicerSettingMatched[1] == 'firstLayerHeightPercentage'){
+				firstLayerHeightPercentage = slicerSettingMatched[2] * 1;
+				firstLayerHeightPercentageDetected = true;
+				console.log("First layerHeight: " + (layerHeight * firstLayerHeightPercentage / 100).toFixed(3) );
+			}
+		}
+
+		//conditions to detect end of slicer settings
+		if(slicerSettingStarted && !slicerSettingMatched){
+			slicerSettingParsed = true;
+		}
+
+		if(!slicerSettingStarted){
+			slicerSettingLinesCount++;
+		}
+	}
+
+	var processLine = function(line){
+		if(!slicerSettingParsed){
+			lineProcessSlicerSettings(line);
+		} else {
+			lineProcessGcode(line);
+		}
+	}
+
+	lr.on('line', processLine);
 
 	lr.on('error', function (err) {
 		// 'err' contains error object
@@ -143,7 +208,6 @@ function gatherInformation(){
 	lr.on('end', function () {
 		console.log('First-pass... Done!');
 	});
-
 }
 
 gatherInformation();
