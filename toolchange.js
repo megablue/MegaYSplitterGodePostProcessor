@@ -1,3 +1,5 @@
+var IMULTIPLIER = 100000;
+
 console.log("Mega YSplitter Gcode Post Processor v1.0");
 
 var args = process.argv,
@@ -21,6 +23,9 @@ var consts = require('constants'),
     fs  = require("fs"), 
     LineByLineReader = require('line-by-line'),
     outputName = filename.split('.gcode')[0] + '_processed.gcode';
+
+var	infillBeginsMarker = /^; infill$/, //S3D specific
+	infillStopsMarker = /^; /;    //S3D specific
 
 function processToolchange(){
 	//var startupTemplate = fs.readFileSync('startup-template.txt').toString();
@@ -108,8 +113,13 @@ function processToolchange(){
 	}
 }
 
-function gatherInformation(){
-	var lr = new LineByLineReader(filename);
+//gather data and process the first pass
+function firstPass(){
+	var lr = new LineByLineReader(filename),
+		lineCounter = 0,
+		buffer = '',
+		slicer = '',
+		slicerDetected = false,
 		startupGcodeMarker = /^;end of startup gcode$/i,
 		slicerSettingMarker = /^;\s{3}(\w+),(.*)/,
 		slicerSettingLinesCount = 0,
@@ -117,9 +127,11 @@ function gatherInformation(){
 		slicerSettingStarted = false,
 		slicerSettingParsed = false,
 		toolChangeMarker = /^T(\d+)$/,
+		extrudeMarker = /^G1.*E(\d{1,}.{0,1}\d{1,})/,
 		layerChangeMarker = /^;.*layer+/i;
 
 	var firstLayerDetected = false,
+		currentTool = -1,
 		numberOfTools = 1,
 		toolchangeDetected = false,
 		layersInfo = [],
@@ -127,31 +139,72 @@ function gatherInformation(){
 		layerHeightDetected = false,
 		firstLayerHeightPercentage = 0,
 		firstLayerHeightPercentageDetected = false,
-		layerIndex = -1;
+		printPerimetersInsideOut = false,
+		infillPercentage = 0,
+		layerIndex = -1,
+		infilling = false,
+		infillLength = 0,
+		infillCounted = false;
 
 	var lineProcessGcode = function (line){
 		var toolChangeMatched = line.match(toolChangeMarker),
-			newLayerMatched = line.match(layerChangeMarker);
+			newLayerMatched = line.match(layerChangeMarker),
+			infillBeginsMatched = slicer == 'S3D' ? line.match(infillBeginsMarker) : false,
+			infillStopsMatched  = slicer == 'S3D' ? line.match(infillStopsMarker) : false;
 
-		if(toolChangeMatched)
+		if(toolChangeMatched && layersInfo[layerIndex]){
+			layersInfo[layerIndex].toolChange =  toolChangeMatched[1] * 1;
+			//console.log("toolChange Detected, new tool: " + layersInfo[layerIndex].toolChange);
+		}
 
 		if(newLayerMatched){
 
+			if(infillCounted){
+				infillCounted = false;
+				infilling = false;
+
+				if(infillLength > 0){
+					layersInfo[layerIndex].S3DInfillLength = (infillLength/IMULTIPLIER).toFixed(4);
+					console.log("Layer: " + layerIndex + ", Purge-able Infill length: " + layersInfo[layerIndex].S3DInfillLength + ", Gcode:");
+					console.log(layersInfo[layerIndex].S3DInfill);
+				}
+			}
+
+			++layerIndex;
+
 			if(!firstLayerDetected){
-				layerIndex = 0;
 				firstLayerDetected = true;
 			}
 
-			console.log("New layer detected! Layer Count: " + layerIndex);
-			layersInfo[layerIndex] = {};
-			layerIndex++;
+			//console.log("New layer detected! Layer Count: " + layerIndex);
+			layersInfo[layerIndex] = {toolChange: -1, infillLength: 0, S3DInfill: ''};			
+			infillLength = 0;
+		}
+
+		if(infillBeginsMatched){
+			infilling = true;
+		} else if(infillStopsMatched){
+			infilling = false;
+		}
+
+		if(slicer == 'S3D' && infilling){
+
+			if(layersInfo[layerIndex] && layersInfo[layerIndex].toolChange > -1){
+				extrudeMatched = line.match(extrudeMarker);
+
+				if(extrudeMatched){
+					//console.log("E: " + extrudeMatched[1]);
+					infillLength += extrudeMatched[1] * IMULTIPLIER;
+					infillCounted = true;
+					//console.log("Line: " + lineCounter + ", E=" + extrudeMatched[1]);
+				}
+			}
+
+			layersInfo[layerIndex].S3DInfill += line + "\n";
 		}
 	}
 
 	var lineProcessSlicerSettings = function (line){
-		var layerHeightMarker = /^;\s{3}layerHeight,(\d+\.\d+)/;
-		firstLayerHeightPercentageMarker = /^;\s{3}firstLayerHeightPercentage\,(\d+\.{0,}\d{0,})/;
-
 		if(!slicerSettingParsed && slicerSettingLinesCount > slicerSettingLinesLimit){
 			console.log("Error: unable to determine slicer settings after " + slicerSettingLinesCount + " lines parsed.");
 			// probably due the bug in line-by-line, 
@@ -160,7 +213,8 @@ function gatherInformation(){
 			lr.close();
 		}
 
-		var slicerSettingMatched = line.match(slicerSettingMarker);
+		var slicerSettingMatched = line.match(slicerSettingMarker),
+			slicerIsS3DMatched = !slicerDetected ? line.match(/^;.*Simplify3D/) : false;
 
 		if(slicerSettingMatched){
 			//console.log(slicerSettingMatched);
@@ -177,6 +231,21 @@ function gatherInformation(){
 				firstLayerHeightPercentageDetected = true;
 				console.log("First layerHeight: " + (layerHeight * firstLayerHeightPercentage / 100).toFixed(3) );
 			}
+
+			if(slicerSettingMatched[1] == 'printPerimetersInsideOut'){
+				
+				if(slicerSettingMatched[2] * 1 == 1){
+					printPerimetersInsideOut = true;
+				}
+
+				console.log("printPerimetersInsideOut: " + printPerimetersInsideOut );
+			}
+		} else {
+			if(slicerIsS3DMatched){
+				slicerDetected = true;
+				slicer = 'S3D';
+				console.log("Slicer: Simplify3D");
+			}
 		}
 
 		//conditions to detect end of slicer settings
@@ -190,6 +259,7 @@ function gatherInformation(){
 	}
 
 	var processLine = function(line){
+		++lineCounter;
 		if(!slicerSettingParsed){
 			lineProcessSlicerSettings(line);
 		} else {
@@ -210,5 +280,5 @@ function gatherInformation(){
 	});
 }
 
-gatherInformation();
+firstPass();
 //processToolchange();
