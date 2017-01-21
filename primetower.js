@@ -226,8 +226,9 @@ var PrimeTower = function () {
 
 		for(var w=0; w < wipe; w++){
 			console.log('wipe #' + w);
-			drawUntil( originX, wipeY,  drawE + retraction, currentlayerspeed);
-			drawUntil( originX + towerwidth, wipeY,  drawE + retraction, currentlayerspeed);
+			buffer += "G92 E0\n"; // zeroing e length.
+			drawUntil( originX, wipeY,  0, currentlayerspeed);
+			drawUntil( originX + towerwidth, wipeY,  retraction *1, currentlayerspeed);
 		}
 
 		return buffer;
