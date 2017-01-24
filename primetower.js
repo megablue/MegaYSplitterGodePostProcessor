@@ -1,15 +1,17 @@
-var PrimeTower = function () {
-	var linewidth = 0.48, //constant 
+var PrimeTower = function (overrides) {
+	if(!overrides) overrides = {};
+
+	var linewidth = 0.48, //constant
 	    filamentpermm = (0.01662945).toFixed(5), //constant, based on .1 layer height
 	    extrusionMultipler = 1,
-	    layerheight = 0.2,
-	    firstlayerheight = 0.2,
-	    currentlayerheight = firstlayerheight,
-	    zOffset = 0.1,
+	    layerheight = overrides.layerheight > 0 ? overrides.layerheight : 0.2,
+	    firstlayerheight = overrides.firstlayerheight > 0 ? overrides.firstlayerheight : 0.2,
+	    currentlayerheight = overrides.firstlayerheight > 0 ? overrides.firstlayerheight : 0.2,
+	    zOffset = overrides.zOffset ? overrides.zOffset : 0,
 	    towerwidth = 4.8, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
 	    towerlength = 90, //always fulfill the tower length
 	    bridges = 4,
-	    bridgehead = 0.96, //the minimum width of a bridgehead is 2xlinewidth 
+	    bridgehead = 0.96, //the minimum width of a bridgehead is 2x linewidth 
 	    speed = 3000,
 	    firslayerspeed = 1200,
 	    currentlayerspeed = 600,
@@ -20,8 +22,8 @@ var PrimeTower = function () {
 	    originY = 0,
 	    centerX = 0,
 	    centerY = 0,
-	    retraction = -9,
-	    retractionspeed = 1800,
+	    retraction = overrides.retraction ? overrides.retraction : 9,
+	    retractionSpeed = overrides.retractionSpeed > 0 overrides.retractionSpeed : 1800,
 	    minimumPurgeLength = 30, //based on e3d v6 clone 1.75mm filament
 	    prime = 9,
 	    wipe = 3,
@@ -211,7 +213,7 @@ var PrimeTower = function () {
 		}
 
 		if(wipe > 1){
-			retraction = Math.floor(retraction / wipe);
+			retraction = Math.floor(retraction / wipe) * -1;
 		}
 
 		var wipeY = originY;
