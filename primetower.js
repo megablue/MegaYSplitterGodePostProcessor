@@ -233,7 +233,7 @@ var PrimeTower = function (overrides) {
 			drawUntil( originX + towerwidth, wipeY,  retraction *1, currentlayerspeed);
 		}
 
-		return buffer;
+		return {gcode: buffer, originXY: applyTransfromations(originX, originY)};
 
 		function drawUntil(x, y, e, speed, comment){
 			if(comment && comment.length > 0){
@@ -242,14 +242,10 @@ var PrimeTower = function (overrides) {
 				comment = '';
 			}
 
-			if(rotation != 0){
-				var rotated = rotate(centerX, centerY, x*1,y*1, rotation);
-				x = rotated[0].toFixed(3);
-				y = rotated[1].toFixed(3);
-			}
+			var xy = applyTransfromations(x,y);
 
-			x = x * 1 + offsetX;
-			y = y * 1 + offsetY;
+			x = xy[coordX = 0];
+			y = xy[coordY = 1];
 
 			buffer += 'G1 F' + speed + ' X' + x + ' Y' + y + ' E' + e + comment + "\n";
 		}
@@ -283,12 +279,23 @@ var PrimeTower = function (overrides) {
 		        ny = (cos * (y - cy)) - (sin * (x - cx)) + cy;
 		    return [nx, ny];
 		}
+
+		function applyTransfromations(x,y){
+			if(rotation != 0){
+				var rotated = rotate(centerX, centerY, x*1,y*1, rotation);
+				x = rotated[0].toFixed(3);
+				y = rotated[1].toFixed(3);
+			}
+
+			x = x * 1 + offsetX;
+			y = y * 1 + offsetY;
+
+			return [x, y];
+		}
 	}
 };
 
-
-
-module.exports = new PrimeTower();
+module.exports = PrimeTower;
 
 // var isFirstLayer = true;
 
