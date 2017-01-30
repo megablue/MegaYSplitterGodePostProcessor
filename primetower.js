@@ -27,7 +27,7 @@ var PrimeTower = function (overrides) {
 	    minimumPurgeLength = 30, //based on e3d v6 clone 1.75mm filament
 	    prime = 9,
 	    wipe = 3,
-	    buffer = '';
+	    buffer = "";
 
 	if(typeof wipe != 'number' || wipe < 0){
 		wipe = 1;
@@ -53,16 +53,18 @@ var PrimeTower = function (overrides) {
 		originY = bedYsize/2 - originY;
 	}
 
-	this.render = function(isFirstLayer, offsetX, offsetY, rotation, infillableFilamentLength){
+	this.render = function(isFirstLayer, currentZ, offsetX, offsetY, rotation, infillableFilamentLength){
+		buffer = ";Primetower begins\n";
 
 		if(isFirstLayer){
-			currentlayerheight = (firstlayerheight + zOffset).toFixed(3) * 1;
 			currentlayerspeed = firslayerspeed;
 		} else {
 			currentlayerspeed = speed;
 		}
 
-		buffer += 'G0 F1800 Z' + (currentlayerheight + 1) + "\n";
+		currentlayerheight = (currentZ + zOffset) * 1;
+
+		//buffer += 'G0 F1800 Z' + (currentlayerheight + 1) + "\n";
 		drawUntil((originX + towerwidth).toFixed(3), originY, 0, 1800, "init point");
 
 		var filamentToBePurged = minimumPurgeLength - infillableFilamentLength,
@@ -80,7 +82,7 @@ var PrimeTower = function (overrides) {
 			savingMode = true;
 		}
 
-		buffer += 'G1 Z' + z + "\n"; // first layer z height
+		//buffer += 'G1 Z' + z + "\n"; // first layer z height
 		buffer += "G1 F1500 E" + prime + "\n"; // prime a little
 		buffer += "G92 E0\n"; // zeroing e length.
 
@@ -232,6 +234,8 @@ var PrimeTower = function (overrides) {
 			drawUntil( originX, wipeY,  0, currentlayerspeed);
 			drawUntil( originX + towerwidth, wipeY,  retraction *1, currentlayerspeed);
 		}
+
+		buffer += ";Primetower ends\n";
 
 		return {gcode: buffer, originXY: applyTransfromations(originX, originY)};
 
