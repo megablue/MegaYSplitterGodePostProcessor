@@ -1,7 +1,8 @@
 var PrimeTower = function (overrides) {
 	if(!overrides) overrides = {};
 
-	var linewidth = 0.48, //constant
+	var DEBUGMODE = DEBUGMODE ? overrides.DEBUGMODE : false;
+		linewidth = 0.48, //constant
 	    filamentpermm = (0.01662945).toFixed(5), //constant, based on .1 layer height
 	    extrusionMultipler = 1,
 	    layerheight = overrides.layerheight > 0 ? overrides.layerheight : 0.2,
@@ -37,7 +38,7 @@ var PrimeTower = function (overrides) {
 		bridgeLength = (towerlength - (bridgehead * totalBridgeHeads)) / bridges;
 	//end of vars
 	if(centeriszero){
-		console.log("Center is zero");
+		if(DEBUGMODE) console.log("Center is zero");
 		originX = (-towerwidth / 2);
 	    originY = (-towerlength / 2);
 	} else {
@@ -45,9 +46,9 @@ var PrimeTower = function (overrides) {
 		centerY = bedYsize / 2;
 		originX = towerwidth / 2;
 	    originY = towerlength / 2;
-		console.log("Center is not zero");
-		console.log("x: " + (bedXsize/2));
-		console.log("y: " + (bedYsize/2));
+		if(DEBUGMODE) console.log("Center is not zero");
+		if(DEBUGMODE) console.log("x: " + (bedXsize/2));
+		if(DEBUGMODE) console.log("y: " + (bedYsize/2));
 
 		originX = bedXsize/2 - originX;
 		originY = bedYsize/2 - originY;
@@ -76,7 +77,7 @@ var PrimeTower = function (overrides) {
 			savingMode = false,
 			flowRate = 1; 
 
-		console.log("minimum filament to be purged: " + filamentToBePurged);
+		if(DEBUGMODE) console.log("minimum filament to be purged: " + filamentToBePurged);
 
 		if(infillableFilamentLength > 0){
 			savingMode = true;
@@ -92,17 +93,17 @@ var PrimeTower = function (overrides) {
 
 		//with saving mode we will generate bridgeheads 
 		if(savingMode){
-			console.log("savingMode detected");
+			if(DEBUGMODE) console.log("savingMode detected");
 			for(var i = 0; i < totalBridgeHeads; i++){
 				for(var b = 0, c = 0; b <= bridgehead; b += linewidth, c++){
-					console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+					if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 					drawX = ((originX + towerwidth - linewidth).toFixed(3)),
 					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
 					drawE = (e).toFixed(5);
 					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
 					e += getExtrusionLength(towerwidth);
 
-					console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+					if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 					drawX = ((originX).toFixed(3)),
 					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
 					drawE = (e).toFixed(5);
@@ -113,7 +114,7 @@ var PrimeTower = function (overrides) {
 					}
 
 					if(b == bridgehead){
-						console.log("bridgehead length: " + bridgehead);
+						if(DEBUGMODE) console.log("bridgehead length: " + bridgehead);
 					}
 				}
 			}
@@ -121,14 +122,14 @@ var PrimeTower = function (overrides) {
 
 		for(var oddity = 0; x <= towerwidth || e < filamentToBePurged; x += linewidth, oddity++){
 			if(e > filamentToBePurged){
-				console.log("Purging length accomplished!");
+				if(DEBUGMODE) console.log("Purging length accomplished!");
 				break;
 			}
 
 			if(x==0 && !savingMode){
 				// console.log("here11");
 				// fs.appendFileSync(fd, ";here11\n");
-			    console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+			    if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 				drawX = ((x + originX + towerwidth - linewidth).toFixed(3)),
 				drawY = ((y + originY).toFixed(3)),
 				drawE = (e).toFixed(5);
@@ -140,7 +141,7 @@ var PrimeTower = function (overrides) {
 				// console.log("here");
 				// fs.appendFileSync(fd, ";Here\n");
 				e += getExtrusionLength(towerwidth);
-			    console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+			    if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 				drawX = ((x + originX + towerwidth).toFixed(3)),
 				drawY = ((y + originY + towerlength - linewidth).toFixed(3)),
 				drawE = (e).toFixed(5);
@@ -157,7 +158,7 @@ var PrimeTower = function (overrides) {
 				drawUntil(gotoX, gotoY, gotoE, currentlayerspeed);
 
 				e += getExtrusionLength(towerlength);
-				console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+				if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 
 				drawX = ((x + originX).toFixed(3)),
 				drawY = ((y + originY + towerlength - linewidth).toFixed(3)),
@@ -179,7 +180,7 @@ var PrimeTower = function (overrides) {
 
 						drawUntil(drawX, drawY, drawE, currentlayerspeed, "i =" + i);
 
-						console.log("Reverse E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+						if(DEBUGMODE) console.log("Reverse E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 					}
 				} else {
 					for(var i = 0; i < totalBridgeHeads - 1; i++){
@@ -194,22 +195,22 @@ var PrimeTower = function (overrides) {
 						drawY = ((bridgeLength * (i+1) + bridgehead * (i+1) + originY + linewidth/2).toFixed(3)),
 						drawE = (e).toFixed(5);
 						drawUntil(drawX, drawY, drawE, currentlayerspeed, "i =" + i);
-						console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
+						if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 					}
 				}
 			}
 
-			console.log("e > filamentToBePurged: " + (e > filamentToBePurged));
-			console.log("x > (towerwidth - linewidth): " + (x > (towerwidth - linewidth)));
-			console.log("x: " + x * 1);
-			console.log("(towerwidth - linewidth): " + (towerwidth - linewidth) *1);
+			if(DEBUGMODE) console.log("e > filamentToBePurged: " + (e > filamentToBePurged));
+			if(DEBUGMODE) console.log("x > (towerwidth - linewidth): " + (x > (towerwidth - linewidth)));
+			if(DEBUGMODE) console.log("x: " + x * 1);
+			if(DEBUGMODE) console.log("(towerwidth - linewidth): " + (towerwidth - linewidth) *1);
 
 			if(e > filamentToBePurged && x *1 >= (towerwidth - linewidth) * 1){
-				console.log("end");
+				if(DEBUGMODE) console.log("end");
 
 				if(isFirstLayer){
 					towerwidth = x.toFixed(2) * 1 + linewidth;
-					console.log("towerwidth: " + towerwidth);
+					if(DEBUGMODE) console.log("towerwidth: " + towerwidth);
 				}
 			}
 		}
@@ -221,15 +222,15 @@ var PrimeTower = function (overrides) {
 		var wipeY = originY;
 
 		if( Math.abs(originY - drawY) > Math.abs(towerlength + originY - drawY) ){
-			console.log("closer to -Y");
+			if(DEBUGMODE) console.log("closer to -Y");
 			wipeY = originY + towerlength - linewidth;
 		} else {
 			wipeY = wipeY + linewidth;
-			console.log("closer to +Y");
+			if(DEBUGMODE) console.log("closer to +Y");
 		}
 
 		for(var w=0; w < wipe; w++){
-			console.log('wipe #' + w);
+			if(DEBUGMODE) console.log('wipe #' + w);
 			buffer += "G92 E0\n"; // zeroing e length.
 			drawUntil( originX, wipeY,  0, currentlayerspeed);
 			drawUntil( originX + towerwidth, wipeY,  retraction *1, currentlayerspeed);
@@ -300,15 +301,5 @@ var PrimeTower = function (overrides) {
 };
 
 module.exports = PrimeTower;
-
-// var isFirstLayer = true;
-
-// // primeTower(isFirstLayer, -85, 0, 0, 0);
-// // currentlayerheight += layerheight;
-// // primeTower(!isFirstLayer, 0, 85, 90, 0);
-
-// primeTower(isFirstLayer, -85, 0, 0, 0);
-// currentlayerheight += layerheight;
-// primeTower(!isFirstLayer, -85, 0, 0, 31);
 
 
