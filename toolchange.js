@@ -22,14 +22,29 @@ if(filename.length == 0){
 var consts = require('constants'),
     fs  = require("fs"), 
     LineByLineReader = require('line-by-line'),
+    PrimeTower = require('./primetower.js'),
     outputName = filename.split('.gcode')[0] + '_processed.gcode';
 
-var	infillBeginsMarker = /^; infill$/, //S3D specific
-	infillStopsMarker = /^; /;    //S3D specific
+var	layersInfo = [],
+	pTower = {},
+	infillBeginsMarker = /^; infill$/, //S3D specific
+	infillStopsMarker = /^; /,    //S3D specific
+
+	layerChangeMarker = /^; layer (\d+), Z = (\d+.\d+)/; //S3D specific
+	toolChangeMarker = /^T(\d+)$/,
+	slicerSettingsTotalLines = 0,
+	layerHeight = 0,
+	firstLayerHeightPercentage = 0;
+
+var towerLocations = [];
+
+towerLocations = [
+	[xOffset= -85, yOffset = 0, rotation = 0],
+	[xOffset=  0, yOffset = 85, rotation = 90]
+];
 
 function processToolchange(){
 	//var startupTemplate = fs.readFileSync('startup-template.txt').toString();
-	var lr = new LineByLineReader(filename);
 	var toolchangeTemplate = fs.readFileSync('toolchange-template.txt').toString();
 	var fd = fs.openSync('./' + outputName, 'w');
 	var buffer = '';
@@ -42,42 +57,92 @@ function processToolchange(){
 	var matchToolChange =/^;TOOLCHANGE NEW(\d) OLD(\d)/;
 	var matchToolChangeXY = /^G1 (X-?\d{0,}.\d{0,}) (Y-?\d{0,}.\d{0,})/i;
 
+	var currentZ = 0,
+		currentLayer = -1,
+		currentTool = -1,
+		currentTowerIndex = 0,
+		maxToolChange = -1,
+		currentLine = 0;
+
+	//find out how many prime towers do we need
+	maxToolChange = findMaxToolChange();
+	console.log("Maximum per layer tool change: " + maxToolChange + ", Total predefined prime towers locations: " + towerLocations.length);
+
+	if(maxToolChange > towerLocations.length){
+		console.log("Insufficient predefined tower locations detected. ");
+
+		//console.log(layersInfo);
+
+		process.exit();
+	}
+
+	console.log("Settings end at line# " + slicerSettingsTotalLines);
+	//process.exit();
+
+	var lr = new LineByLineReader(filename);
+
 	lr.on('line', function (line) {
-		if(foundToolChangeMarker){
-			var xyResult = line.match(matchToolChangeXY);
-			if(xyResult != null){
-				var x = xyResult[1];
-				var y = xyResult[2];
-				var xy = x + ' ' + y;
-				//console.log('Next XY Coordinate: ' + xy);
-				buffer += renderToolChange(toolchangeTemplate, newtoolNumber, oldtoolNumber, xy);
-				fs.appendFileSync(fd, buffer + "\n");
-				buffer = '';
-				foundToolChangeMarker = false;
-			}
+
+		if(currentLine++ < slicerSettingsTotalLines){
+			console.log(line);
+			fs.appendFileSync(fd, line + "\n");
 			return;
 		}
 
-		var toolchangeResult = line.match(matchToolChange);
-		var toolSwitched = false;
+		var layerChangeMatched = line.match(layerChangeMarker),
+			toolChangeMatched = line.match(toolChangeMarker);
 
-		if(toolchangeResult != null){
-			newtoolNumber = toolchangeResult[1];
-			oldtoolNumber = toolchangeResult[2];
-			
-			if(newtoolNumber != oldtoolNumber){
-				toolSwitched = true;
-				foundToolChangeMarker = true;
+		// if(layerChangeMatched){
+		// 	if(layerChangeMatched[2] * 1 > currentZ){
+		// 		currentZ = layerChangeMatched[2] * 1;
+		// 		layerChangeMatched = true;
+		// 	} else{
+		// 		layerChangeMatched = false;
+		// 	}
+		// }
+
+		if(layerChangeMatched){
+			//if floor are not fully built 
+			if(currentLayer >= 0 && currentTowerIndex < maxToolChange){
+				for(var i = currentTowerIndex; i < maxToolChange; i++){
+					var infillLength = 30,
+						isFirstLayer = currentLayer == 0;
+					var zHeight = isFirstLayer ? (layerHeight * firstLayerHeightPercentage / 100).toFixed(3) : layerHeight * (currentLayer + 1);
+					var tower = pTower.render(isFirstLayer, zHeight, towerLocations[i][0], towerLocations[i][1], towerLocations[i][2], infillLength);
+					fs.appendFileSync(fd, tower.gcode + "\n");
+				}
+			}
+			currentZ = layerChangeMatched[2] * 1;
+			maxToolChange = findMaxToolChange();
+			currentTowerIndex = 0;
+			fs.appendFileSync(fd, line + "\n");
+			++currentLayer;
+		} else if (toolChangeMatched && currentLayer>= 0){
+			var oldTool = currentTool < 0 ? toolChangeMatched[1] * 1 : currentTool,
+				infillLength = currentLayer > 0 && currentTowerIndex == 0 ? layersInfo[currentLayer].S3DInfillLength : 0,
+				isFirstLayer = currentLayer == 0,
+				currentTool = toolChangeMatched[1] * 1,
+				toolChangeGcode = '',
+				tower;
+			var zHeight = isFirstLayer ? (layerHeight * firstLayerHeightPercentage / 100).toFixed(3) : ((layerHeight * firstLayerHeightPercentage / 100) + layerHeight * currentLayer).toFixed(3);
+
+			tower = pTower.render(isFirstLayer, zHeight, towerLocations[currentTowerIndex][0], towerLocations[currentTowerIndex][1], towerLocations[currentTowerIndex][2], infillLength);
+			toolChangeGcode = renderToolChange(toolchangeTemplate, currentTool, oldTool, tower.originXY[0], tower.originXY[1]);
+
+			fs.appendFileSync(fd, toolChangeGcode + "\n");
+			fs.appendFileSync(fd, tower.gcode + "\n");
+			//fs.appendFileSync(fd, line + "\n");
+			if(currentTowerIndex > 0){
+				fs.appendFileSync(fd, ";Something is wrong!!! Line#: " + currentLine + "\n");
+				//process.exit();
 			}
 
-			if(toolSwitched){
-				console.log('New tool: ' + newtoolNumber + ', Old tool: ' + oldtoolNumber);
-			} else {
-				console.log('Tool not switched');
-			}
+			++currentTowerIndex;
 		} else {
-			buffer += line + "\n";
+			fs.appendFileSync(fd, line + "\n");
 		}
+
+		//fs.appendFileSync(fd, line + "\n");
 	});
 
 	lr.on('error', function (err) {
@@ -103,48 +168,73 @@ function processToolchange(){
 	//     return template;
 	// }
 
-	function renderToolChange(template, newtool, oldtool, xy){
+	function renderToolChange(template, newtool, oldtool, x, y){
 	    template = template.replace("\r\n", "\n");
 	    template = template.replace(/^\s*\n/gm, "\n");
 	    template = template.replace('{NEWTOOL}', newtool);
 	    template = template.replace('{OLDTOOL}', oldtool);
-	    template = template.replace('{XY}', xy);
+	    template = template.replace('{X}', x);
+	    template = template.replace('{Y}', y);
 	    return template;
+	}
+
+	//find out the next tool change? P/S: probably unneeded.
+	function findNextToolChangeLayer(){
+		if(layersInfo[currentLayer+1]){
+			for(var i = currentLayer+1; i < layersInfo.length; i++){
+				if(layersInfo[i].toolChangeTotal > 0){
+					return i;
+				}
+			}
+		}
+		return -1;
+	}
+
+	//find the maximum tool change per layer from subsequence layers
+	function findMaxToolChange(){
+		var max = 0;
+		var currentZ = 0;
+
+		if(layersInfo[currentLayer+1]){
+			for(var i = currentLayer+1; i < layersInfo.length; i++){
+				if(layersInfo[i].toolChangeTotal > max){
+					max = layersInfo[i].toolChangeTotal;
+				}
+			}
+		}
+
+		return max;
 	}
 }
 
 //gather data and process the first pass
-function firstPass(){
+function firstPass(callback){
 	var lr = new LineByLineReader(filename),
 		lineCounter = 0,
 		buffer = '',
 		slicer = '',
 		slicerDetected = false,
 		startupGcodeMarker = /^;end of startup gcode$/i,
-		slicerSettingMarker = /^;\s{3}(\w+),(.*)/,
+		slicerSettingMarker = /^;\s{3}(\w+),?(.*)/,
 		slicerSettingLinesCount = 0,
 		slicerSettingLinesLimit = 200,
 		slicerSettingStarted = false,
 		slicerSettingParsed = false,
-		toolChangeMarker = /^T(\d+)$/,
-		extrudeMarker = /^G1.*E(\d{1,}.{0,1}\d{1,})/,
-		layerChangeMarker = /^;.*layer+/i;
+		extrudeMarker = /^G1.*E(\d{1,}.{0,1}\d{1,})/;
 
 	var firstLayerDetected = false,
 		currentTool = -1,
 		numberOfTools = 1,
 		toolchangeDetected = false,
-		layersInfo = [],
-		layerHeight = 0,
 		layerHeightDetected = false,
-		firstLayerHeightPercentage = 0,
 		firstLayerHeightPercentageDetected = false,
 		printPerimetersInsideOut = false,
 		infillPercentage = 0,
 		layerIndex = -1,
 		infilling = false,
 		infillLength = 0,
-		infillCounted = false;
+		infillCounted = false,
+		currentZ = 0;
 
 	var lineProcessGcode = function (line){
 		var toolChangeMatched = line.match(toolChangeMarker),
@@ -153,11 +243,23 @@ function firstPass(){
 			infillStopsMatched  = slicer == 'S3D' ? line.match(infillStopsMarker) : false;
 
 		if(toolChangeMatched && layersInfo[layerIndex]){
-			layersInfo[layerIndex].toolChange =  toolChangeMatched[1] * 1;
+			layersInfo[layerIndex].toolChange[layersInfo[layerIndex].toolChangeTotal] =  toolChangeMatched[1] * 1;
+			++layersInfo[layerIndex].toolChangeTotal;
 			//console.log("toolChange Detected, new tool: " + layersInfo[layerIndex].toolChange);
 		}
 
+		// if(newLayerMatched){
+		// 	if(newLayerMatched[2] * 1 > currentZ){
+		// 		currentZ = newLayerMatched[2] * 1;
+		// 		newLayerMatched = true;
+		// 	} else{
+		// 		newLayerMatched = false;
+		// 	}
+		// }
+
 		if(newLayerMatched){
+			// console.log("new layer detected " + newLayerMatched[1] );
+			// console.log("new layer z " + newLayerMatched[2] );
 
 			if(infillCounted){
 				infillCounted = false;
@@ -165,8 +267,8 @@ function firstPass(){
 
 				if(infillLength > 0){
 					layersInfo[layerIndex].S3DInfillLength = (infillLength/IMULTIPLIER).toFixed(4);
-					console.log("Layer: " + layerIndex + ", Purge-able Infill length: " + layersInfo[layerIndex].S3DInfillLength + ", Gcode:");
-					console.log(layersInfo[layerIndex].S3DInfill);
+					//console.log("Layer: " + layerIndex + ", Purge-able Infill length: " + layersInfo[layerIndex].S3DInfillLength + ", Gcode:");
+					//console.log(layersInfo[layerIndex].S3DInfill);
 				}
 			}
 
@@ -177,7 +279,7 @@ function firstPass(){
 			}
 
 			//console.log("New layer detected! Layer Count: " + layerIndex);
-			layersInfo[layerIndex] = {toolChange: -1, infillLength: 0, S3DInfill: ''};			
+			layersInfo[layerIndex] = {toolChange: [], toolChangeTotal: 0, S3DInfillLength: 0, S3DInfill: ''};			
 			infillLength = 0;
 		}
 
@@ -189,7 +291,7 @@ function firstPass(){
 
 		if(slicer == 'S3D' && infilling){
 
-			if(layersInfo[layerIndex] && layersInfo[layerIndex].toolChange > -1){
+			if(layersInfo[layerIndex]){
 				extrudeMatched = line.match(extrudeMarker);
 
 				if(extrudeMatched){
@@ -240,12 +342,10 @@ function firstPass(){
 
 				console.log("printPerimetersInsideOut: " + printPerimetersInsideOut );
 			}
-		} else {
-			if(slicerIsS3DMatched){
-				slicerDetected = true;
-				slicer = 'S3D';
-				console.log("Slicer: Simplify3D");
-			}
+		} else if(slicerIsS3DMatched){
+			slicerDetected = true;
+			slicer = 'S3D';
+			console.log("Slicer: Simplify3D");
 		}
 
 		//conditions to detect end of slicer settings
@@ -256,6 +356,8 @@ function firstPass(){
 		if(!slicerSettingStarted){
 			slicerSettingLinesCount++;
 		}
+
+		++slicerSettingsTotalLines;
 	}
 
 	var processLine = function(line){
@@ -277,8 +379,19 @@ function firstPass(){
 
 	lr.on('end', function () {
 		console.log('First-pass... Done!');
+		var firstLayerHeight = (layerHeight * firstLayerHeightPercentage / 100).toFixed(3);
+		pTower = new PrimeTower({layerHeight, firstLayerHeight});
+		
+		// for(var i = 0; i < layersInfo.length; i++){
+
+		// 	if(layersInfo[i].toolChangeTotal > 0 && layersInfo[i].S3DInfill != ''){
+		// 		console.log(layersInfo[i]);
+		// 	}
+		// }
+
+		//console.log(pTower.render(true, -85, 0, 0, 0).originXY);
+		callback();
 	});
 }
 
-firstPass();
-//processToolchange();
+firstPass(processToolchange);
