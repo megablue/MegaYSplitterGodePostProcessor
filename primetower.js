@@ -2,8 +2,10 @@ var PrimeTower = function (overrides) {
 	if(!overrides) overrides = {};
 
 	var DEBUGMODE = DEBUGMODE ? overrides.DEBUGMODE : false;
-		linewidth = 0.48, //constant
-	    filamentpermm = (0.01662945).toFixed(5), //constant, based on .1 layer height
+		filamentDiameter = 1.75,
+		nozzleDiameter = overrides.nozzleDiameter > 0 ? nozzleDiameter : 0.4;
+		linewidth = nozzleDiameter * 1.2,
+		flowMultipler = 0.92,
 	    extrusionMultipler = 1,
 	    layerheight = overrides.layerheight > 0 ? overrides.layerheight : 0.2,
 	    firstlayerheight = overrides.firstlayerheight > 0 ? overrides.firstlayerheight : 0.2,
@@ -25,10 +27,13 @@ var PrimeTower = function (overrides) {
 	    centerY = 0,
 	    retraction = overrides.retraction ? overrides.retraction : 9,
 	    retractionSpeed = overrides.retractionSpeed > 0 ? overrides.retractionSpeed : 1800,
-	    minimumPurgeLength = 30, //based on e3d v6 clone 1.75mm filament
 	    prime = 9,
 	    wipe = 3,
 	    buffer = "";
+
+    var filamentpermm = Math.pow(linewidth/2, 2) * Math.PI * 0.1 * flowMultipler;// (0.01662945).toFixed(5), //constant, based on .1 layer height
+    var minimumPurgeVolume = 73;
+    var minimumPurgeLength =  Math.floor(minimumPurgeVolume / (Math.PI * Math.pow(filamentDiameter/2, 2))); //based on e3d v6 clone 1.75mm
 
 	if(typeof wipe != 'number' || wipe < 0){
 		wipe = 1;
@@ -54,8 +59,8 @@ var PrimeTower = function (overrides) {
 		originY = bedYsize/2 - originY;
 	}
 
-	this.render = function(isFirstLayer, currentZ, offsetX, offsetY, rotation, infillableFilamentLength){
-		buffer = ";Primetower begins\n";
+	this.render = function(isFirstLayer, currentZ, offsetX, offsetY, rotation, infillableFilamentLength, forceSaving){
+		buffer = ";Primetower begins\n; prime pillar\n";
 
 		if(isFirstLayer){
 			currentlayerspeed = firslayerspeed;
@@ -68,7 +73,7 @@ var PrimeTower = function (overrides) {
 		//buffer += 'G0 F1800 Z' + (currentlayerheight + 1) + "\n";
 		drawUntil((originX + towerwidth).toFixed(3), originY, 0, 1800, "init point");
 
-		var filamentToBePurged = minimumPurgeLength - infillableFilamentLength,
+		var filamentToBePurged = forceSaving ? 0 : minimumPurgeLength - infillableFilamentLength,
 			x = 0, 
 			y = 0, 
 			z = currentlayerheight, 
@@ -79,7 +84,7 @@ var PrimeTower = function (overrides) {
 
 		if(DEBUGMODE) console.log("minimum filament to be purged: " + filamentToBePurged);
 
-		if(infillableFilamentLength > 0){
+		if(forceSaving || infillableFilamentLength > 0){
 			savingMode = true;
 		}
 
@@ -97,7 +102,7 @@ var PrimeTower = function (overrides) {
 			for(var i = 0; i < totalBridgeHeads; i++){
 				for(var b = 0, c = 0; b <= bridgehead; b += linewidth, c++){
 					if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
-					drawX = ((originX + towerwidth - linewidth).toFixed(3)),
+					drawX = ((originX + towerwidth - linewidth * 2).toFixed(3)),
 					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY - linewidth).toFixed(3)),
 					drawE = (e).toFixed(5);
 					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
@@ -236,6 +241,7 @@ var PrimeTower = function (overrides) {
 			drawUntil( originX + towerwidth, wipeY,  retraction *1, currentlayerspeed);
 		}
 
+		buffer += "G92 E0\n";
 		buffer += ";Primetower ends\n";
 
 		return {gcode: buffer, originXY: applyTransfromations(originX, originY)};
