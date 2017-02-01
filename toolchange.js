@@ -1,4 +1,5 @@
 var IMULTIPLIER = 100000;
+var DEBUGMODE = false;
 
 console.log("Mega YSplitter Gcode Post Processor v1.0");
 
@@ -74,9 +75,6 @@ function processToolchange(){
 
 	if(maxToolChange > towerLocations.length){
 		console.log("Insufficient predefined tower locations detected. ");
-
-		//console.log(layersInfo);
-
 		process.exit();
 	}
 
@@ -88,7 +86,7 @@ function processToolchange(){
 	lr.on('line', function (line) {
 
 		if(currentLine++ < slicerSettingsTotalLines-1){
-			//console.log(line);
+			if(DEBUGMODE) console.log(line);
 			fs.appendFileSync(fd, line + "\n");
 			return;
 		}
@@ -109,12 +107,26 @@ function processToolchange(){
 		if(towerBeginsMatched){
 			towering = true;
 			var oldTool = currentTool < 0 ? layersInfo[currentLayer].toolChange : currentTool,
-				infillLength = currentLayer > 0 && currentTowerIndex == 0 ? layersInfo[currentLayer].S3DInfillLength : 0,
+				infillLength = layersInfo[currentLayer].S3DInfillLength,
 				isFirstLayer = currentLayer == 0,
 				currentTool = layersInfo[currentLayer].toolChange,
 				toolChangeGcode = '',
-				tower;
-			tower = pTower.render(isFirstLayer, currentZ, towerLocations[currentTowerIndex][0], towerLocations[currentTowerIndex][1], towerLocations[currentTowerIndex][2], infillLength);
+				tower,
+				forceSaving = false;
+
+			if(isFirstLayer){
+				forceSaving = false;
+			}
+
+			if(currentTool == -1){
+				forceSaving = true;
+			}
+
+			tower = pTower.render(isFirstLayer, currentZ, 
+						towerLocations[currentTowerIndex][0], 
+						towerLocations[currentTowerIndex][1], 
+						towerLocations[currentTowerIndex][2], 
+						infillLength, forceSaving);
 
 			if(currentTool > -1){
 				toolChangeGcode = renderToolChange(toolchangeTemplate, currentTool, oldTool, tower.originXY[0], tower.originXY[1]);
@@ -124,6 +136,12 @@ function processToolchange(){
 			if(maxToolChange > 0){
 				fs.appendFileSync(fd, tower.gcode + "\n");
 				++currentTowerIndex;
+			}
+
+			if(layersInfo[currentLayer].S3DInfillLength){
+				fs.appendFileSync(fd, "; Restructured Infill begins\n");
+				fs.appendFileSync(fd, layersInfo[currentLayer].S3DInfill);
+				fs.appendFileSync(fd, "; Restructured Infill ends\n");
 			}
 
 		} else if(towerStopsMatched){
@@ -138,10 +156,8 @@ function processToolchange(){
 			towering = false;
 			++currentLayer;
 			fs.appendFileSync(fd, line + "\n");
-		} else if(!towering){
-			if(!infilling || layersInfo[currentLayer].toolChangeTotal == 0){
-				fs.appendFileSync(fd, line + "\n");
-			}
+		} else if(!towering && !infilling){
+			fs.appendFileSync(fd, line + "\n");
 		}
 	});
 
