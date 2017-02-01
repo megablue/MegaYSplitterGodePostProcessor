@@ -25,11 +25,13 @@ var consts = require('constants'),
     PrimeTower = require('./primetower.js'),
     outputName = filename.split('.gcode')[0] + '_processed.gcode';
 
-var	layersInfo = [],
+var	slicer = '',
+	layersInfo = [],
 	pTower = {},
+	towerBeginsMarker = /^; prime pillar$/, //S3D specific
+	towerStopsMarker = /^;/,    //S3D specific
 	infillBeginsMarker = /^; infill$/, //S3D specific
-	infillStopsMarker = /^; /,    //S3D specific
-
+	infillStopsMarker = /^;/,    //S3D specific
 	layerChangeMarker = /^; layer (\d+), Z = (\d+.\d+)/; //S3D specific
 	toolChangeMarker = /^T(\d+)$/,
 	slicerSettingsTotalLines = 0,
@@ -62,7 +64,9 @@ function processToolchange(){
 		currentTool = -1,
 		currentTowerIndex = 0,
 		maxToolChange = -1,
-		currentLine = 0;
+		currentLine = 0,
+		infilling = false,
+		towering = false;
 
 	//find out how many prime towers do we need
 	maxToolChange = findMaxToolChange();
@@ -76,73 +80,69 @@ function processToolchange(){
 		process.exit();
 	}
 
-	console.log("Settings end at line# " + slicerSettingsTotalLines);
+	//console.log("Settings end at line# " + slicerSettingsTotalLines);
 	//process.exit();
 
 	var lr = new LineByLineReader(filename);
 
 	lr.on('line', function (line) {
 
-		if(currentLine++ < slicerSettingsTotalLines){
-			console.log(line);
+		if(currentLine++ < slicerSettingsTotalLines-1){
+			//console.log(line);
 			fs.appendFileSync(fd, line + "\n");
 			return;
 		}
 
-		var layerChangeMatched = line.match(layerChangeMarker),
-			toolChangeMatched = line.match(toolChangeMarker);
+		var towerBeginsMatched = line.match(towerBeginsMarker),
+			towerStopsMatched = line.match(towerStopsMarker),
+			layerChangeMatched = line.match(layerChangeMarker),
+			toolChangeMatched = line.match(toolChangeMarker),
+			infillBeginsMatched = slicer == 'S3D' ? line.match(infillBeginsMarker) : false,
+			infillStopsMatched  = slicer == 'S3D' ? line.match(infillStopsMarker) : false;
 
-		// if(layerChangeMatched){
-		// 	if(layerChangeMatched[2] * 1 > currentZ){
-		// 		currentZ = layerChangeMatched[2] * 1;
-		// 		layerChangeMatched = true;
-		// 	} else{
-		// 		layerChangeMatched = false;
-		// 	}
-		// }
+		if(infillBeginsMatched){
+			infilling = true;
+		} else if(infillStopsMatched){
+			infilling = false;
+		}
+
+		if(towerBeginsMatched){
+			towering = true;
+			var oldTool = currentTool < 0 ? layersInfo[currentLayer].toolChange : currentTool,
+				infillLength = currentLayer > 0 && currentTowerIndex == 0 ? layersInfo[currentLayer].S3DInfillLength : 0,
+				isFirstLayer = currentLayer == 0,
+				currentTool = layersInfo[currentLayer].toolChange,
+				toolChangeGcode = '',
+				tower;
+			tower = pTower.render(isFirstLayer, currentZ, towerLocations[currentTowerIndex][0], towerLocations[currentTowerIndex][1], towerLocations[currentTowerIndex][2], infillLength);
+
+			if(currentTool > -1){
+				toolChangeGcode = renderToolChange(toolchangeTemplate, currentTool, oldTool, tower.originXY[0], tower.originXY[1]);
+				fs.appendFileSync(fd, toolChangeGcode + "\n");
+			}
+
+			if(maxToolChange > 0){
+				fs.appendFileSync(fd, tower.gcode + "\n");
+				++currentTowerIndex;
+			}
+
+		} else if(towerStopsMatched){
+			towering = false;
+		}
 
 		if(layerChangeMatched){
-			//if floor are not fully built 
-			if(currentLayer >= 0 && currentTowerIndex < maxToolChange){
-				for(var i = currentTowerIndex; i < maxToolChange; i++){
-					var infillLength = 30,
-						isFirstLayer = currentLayer == 0;
-					var zHeight = isFirstLayer ? (layerHeight * firstLayerHeightPercentage / 100).toFixed(3) : layerHeight * (currentLayer + 1);
-					var tower = pTower.render(isFirstLayer, zHeight, towerLocations[i][0], towerLocations[i][1], towerLocations[i][2], infillLength);
-					fs.appendFileSync(fd, tower.gcode + "\n");
-				}
-			}
 			currentZ = layerChangeMatched[2] * 1;
 			maxToolChange = findMaxToolChange();
 			currentTowerIndex = 0;
-			fs.appendFileSync(fd, line + "\n");
+			infilling = false;
+			towering = false;
 			++currentLayer;
-		} else if (toolChangeMatched && currentLayer>= 0){
-			var oldTool = currentTool < 0 ? toolChangeMatched[1] * 1 : currentTool,
-				infillLength = currentLayer > 0 && currentTowerIndex == 0 ? layersInfo[currentLayer].S3DInfillLength : 0,
-				isFirstLayer = currentLayer == 0,
-				currentTool = toolChangeMatched[1] * 1,
-				toolChangeGcode = '',
-				tower;
-			var zHeight = isFirstLayer ? (layerHeight * firstLayerHeightPercentage / 100).toFixed(3) : ((layerHeight * firstLayerHeightPercentage / 100) + layerHeight * currentLayer).toFixed(3);
-
-			tower = pTower.render(isFirstLayer, zHeight, towerLocations[currentTowerIndex][0], towerLocations[currentTowerIndex][1], towerLocations[currentTowerIndex][2], infillLength);
-			toolChangeGcode = renderToolChange(toolchangeTemplate, currentTool, oldTool, tower.originXY[0], tower.originXY[1]);
-
-			fs.appendFileSync(fd, toolChangeGcode + "\n");
-			fs.appendFileSync(fd, tower.gcode + "\n");
-			//fs.appendFileSync(fd, line + "\n");
-			if(currentTowerIndex > 0){
-				fs.appendFileSync(fd, ";Something is wrong!!! Line#: " + currentLine + "\n");
-				//process.exit();
-			}
-
-			++currentTowerIndex;
-		} else {
 			fs.appendFileSync(fd, line + "\n");
+		} else if(!towering){
+			if(!infilling || layersInfo[currentLayer].toolChangeTotal == 0){
+				fs.appendFileSync(fd, line + "\n");
+			}
 		}
-
-		//fs.appendFileSync(fd, line + "\n");
 	});
 
 	lr.on('error', function (err) {
@@ -212,7 +212,6 @@ function firstPass(callback){
 	var lr = new LineByLineReader(filename),
 		lineCounter = 0,
 		buffer = '',
-		slicer = '',
 		slicerDetected = false,
 		startupGcodeMarker = /^;end of startup gcode$/i,
 		slicerSettingMarker = /^;\s{3}(\w+),?(.*)/,
@@ -243,7 +242,7 @@ function firstPass(callback){
 			infillStopsMatched  = slicer == 'S3D' ? line.match(infillStopsMarker) : false;
 
 		if(toolChangeMatched && layersInfo[layerIndex]){
-			layersInfo[layerIndex].toolChange[layersInfo[layerIndex].toolChangeTotal] =  toolChangeMatched[1] * 1;
+			layersInfo[layerIndex].toolChange =  toolChangeMatched[1] * 1;
 			++layersInfo[layerIndex].toolChangeTotal;
 			//console.log("toolChange Detected, new tool: " + layersInfo[layerIndex].toolChange);
 		}
@@ -279,7 +278,7 @@ function firstPass(callback){
 			}
 
 			//console.log("New layer detected! Layer Count: " + layerIndex);
-			layersInfo[layerIndex] = {toolChange: [], toolChangeTotal: 0, S3DInfillLength: 0, S3DInfill: ''};			
+			layersInfo[layerIndex] = {toolChange: -1, toolChangeTotal: 0, S3DInfillLength: 0, S3DInfill: ''};			
 			infillLength = 0;
 		}
 
@@ -390,7 +389,10 @@ function firstPass(callback){
 		// }
 
 		//console.log(pTower.render(true, -85, 0, 0, 0).originXY);
-		callback();
+
+		if(typeof callback === "function"){
+			callback();
+		}
 	});
 }
 
