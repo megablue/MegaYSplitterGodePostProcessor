@@ -18,12 +18,14 @@ for(var i = 0, parts = []; i < args.length; i++){
 
 if(filename.length == 0){
 	console.log("Please provide the path and filename for the gcode you want to processs. eg: node toolchange.js 3dbenchy.gcode");
+	process.exit();
 }
 
+const path = require('path');
 var consts = require('constants'),
     fs  = require("fs"), 
     LineByLineReader = require('line-by-line'),
-    PrimeTower = require('./primetower.js'),
+    PrimeTower = require(path.resolve(__dirname, 'primetower.js')),
     outputName = filename.split('.gcode')[0] + '_processed.gcode';
 
 var	slicer = '',
@@ -48,8 +50,8 @@ towerLocations = [
 
 function processToolchange(){
 	//var startupTemplate = fs.readFileSync('startup-template.txt').toString();
-	var toolchangeTemplate = fs.readFileSync('toolchange-template.txt').toString();
-	var fd = fs.openSync('./' + outputName, 'w');
+	var toolchangeTemplate = fs.readFileSync(path.resolve(__dirname,'toolchange-template.txt')).toString();
+	var fd = fs.openSync(outputName, 'w');
 	var buffer = '';
 	var toolchangeCount = 0;
 	var foundToolChangeMarker = false;
