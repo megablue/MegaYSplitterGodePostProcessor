@@ -83,7 +83,7 @@ var PrimeTower = function (overrides) {
 			savingMode = true;
 		}
 
-		//buffer += 'G1 Z' + z + "\n"; // first layer z height
+		buffer += 'G1 Z' + currentZ + " F1500\n"; // first layer z height
 		buffer += "G1 F1500 E" + prime + "\n"; // prime a little
 		buffer += "G92 E0\n"; // zeroing e length.
 
@@ -98,14 +98,14 @@ var PrimeTower = function (overrides) {
 				for(var b = 0, c = 0; b <= bridgehead; b += linewidth, c++){
 					if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 					drawX = ((originX + towerwidth - linewidth).toFixed(3)),
-					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
+					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY - linewidth).toFixed(3)),
 					drawE = (e).toFixed(5);
 					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
 					e += getExtrusionLength(towerwidth);
 
 					if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 					drawX = ((originX).toFixed(3)),
-					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY).toFixed(3)),
+					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY - linewidth).toFixed(3)),
 					drawE = (e).toFixed(5);
 					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
 
@@ -241,7 +241,7 @@ var PrimeTower = function (overrides) {
 		return {gcode: buffer, originXY: applyTransfromations(originX, originY)};
 
 		function drawUntil(x, y, e, speed, comment){
-			if(comment && comment.length > 0){
+			if(DEBUGMODE && comment && comment.length > 0){
 				comment = ';' + comment;
 			} else {
 				comment = '';
