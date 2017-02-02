@@ -263,7 +263,7 @@ var PrimeTower = function (overrides) {
 			x = (xy[coordX = 0]);
 			y = (xy[coordY = 1]);
 
-			buffer += 'G1 F' + speed + ' X' + x + ' Y' + y + ' E' + e + comment + "\n";
+			buffer += 'G1 X' + x + ' Y' + y + ' E' + e + " F"+ speed + comment + "\n";
 		}
 
 		function getExtrusionLength(distance){
