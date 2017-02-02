@@ -5,7 +5,7 @@ var PrimeTower = function (overrides) {
 		filamentDiameter = 1.75,
 		nozzleDiameter = overrides.nozzleDiameter > 0 ? nozzleDiameter : 0.4;
 		linewidth = nozzleDiameter * 1.2,
-		flowMultipler = 0.92,
+		flowMultipler = 1.05,
 	    extrusionMultipler = 1,
 	    layerheight = overrides.layerheight > 0 ? overrides.layerheight : 0.2,
 	    firstlayerheight = overrides.firstlayerheight > 0 ? overrides.firstlayerheight : 0.2,
@@ -27,7 +27,7 @@ var PrimeTower = function (overrides) {
 	    centerY = 0,
 	    retraction = overrides.retraction ? overrides.retraction : 9,
 	    retractionSpeed = overrides.retractionSpeed > 0 ? overrides.retractionSpeed : 1800,
-	    prime = 9,
+	    prime = overrides.prime ? overrides.prime : 0,
 	    wipe = 3,
 	    buffer = "";
 
@@ -68,10 +68,7 @@ var PrimeTower = function (overrides) {
 			currentlayerspeed = speed;
 		}
 
-		currentlayerheight = (currentZ + zOffset) * 1;
-
-		//buffer += 'G0 F1800 Z' + (currentlayerheight + 1) + "\n";
-		drawUntil((originX + towerwidth).toFixed(3), originY, 0, 1800, "init point");
+		currentlayerheight = ((currentZ + zOffset) * 1).toFixed(2);
 
 		var filamentToBePurged = forceSaving ? 0 : minimumPurgeLength - infillableFilamentLength,
 			x = 0, 
@@ -88,9 +85,17 @@ var PrimeTower = function (overrides) {
 			savingMode = true;
 		}
 
-		buffer += 'G1 Z' + currentZ + " F1500\n"; // first layer z height
-		buffer += "G1 F1500 E" + prime + "\n"; // prime a little
+		if(isFirstLayer){
+			filamentToBePurged = minimumPurgeLength;
+			savingMode = true;
+		}
+
 		buffer += "G92 E0\n"; // zeroing e length.
+		buffer += 'G1 Z' + currentlayerheight + " F1500\n"; // first layer z height
+		buffer += "G1 E" + prime + " F1500\n"; // prime a little
+		buffer += "G92 E0\n"; // zeroing e length.
+
+		drawUntil((originX + towerwidth).toFixed(3), originY, 0, 1800, "init point");
 
 		var drawX = 0,
 			drawY = 0,
@@ -220,10 +225,6 @@ var PrimeTower = function (overrides) {
 			}
 		}
 
-		if(wipe > 1){
-			retraction = Math.floor(retraction / wipe) * -1;
-		}
-
 		var wipeY = originY;
 
 		if( Math.abs(originY - drawY) > Math.abs(towerlength + originY - drawY) ){
@@ -234,13 +235,17 @@ var PrimeTower = function (overrides) {
 			if(DEBUGMODE) console.log("closer to +Y");
 		}
 
-		for(var w=0; w < wipe; w++){
-			if(DEBUGMODE) console.log('wipe #' + w);
-			buffer += "G92 E0\n"; // zeroing e length.
-			drawUntil( originX, wipeY,  0, currentlayerspeed);
-			drawUntil( originX + towerwidth, wipeY,  retraction *1, currentlayerspeed);
-		}
 
+		if(wipe > 1){
+			var smallRetraction = (retraction / wipe) * -1;
+			for(var w=0; w < wipe; w++){
+				if(DEBUGMODE) console.log('wipe #' + w);
+				buffer += "G92 E0\n"; // zeroing e length.
+				drawUntil( originX, wipeY,  0, currentlayerspeed);
+				drawUntil( originX + towerwidth, wipeY,  smallRetraction, currentlayerspeed);
+			}
+		}
+		
 		buffer += "G92 E0\n";
 		buffer += ";Primetower ends\n";
 
@@ -255,8 +260,8 @@ var PrimeTower = function (overrides) {
 
 			var xy = applyTransfromations(x,y);
 
-			x = xy[coordX = 0];
-			y = xy[coordY = 1];
+			x = (xy[coordX = 0]);
+			y = (xy[coordY = 1]);
 
 			buffer += 'G1 F' + speed + ' X' + x + ' Y' + y + ' E' + e + comment + "\n";
 		}
@@ -292,14 +297,14 @@ var PrimeTower = function (overrides) {
 		}
 
 		function applyTransfromations(x,y){
+			x = x * 1 + offsetX;
+			y = y * 1 + offsetY;
+
 			if(rotation != 0){
 				var rotated = rotate(centerX, centerY, x*1,y*1, rotation);
 				x = rotated[0].toFixed(3);
 				y = rotated[1].toFixed(3);
 			}
-
-			x = x * 1 + offsetX;
-			y = y * 1 + offsetY;
 
 			return [x, y];
 		}
