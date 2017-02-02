@@ -159,6 +159,8 @@ function processToolchange(){
 			++currentLayer;
 			fs.appendFileSync(fd, line + "\n");
 		} else if(!towering && !infilling){
+
+			if(!toolChangeMatched)
 			fs.appendFileSync(fd, line + "\n");
 		}
 	});
@@ -356,7 +358,6 @@ function firstPass(callback){
 				if(slicerSettingMatched[2] * 1 == 1){
 					printPerimetersInsideOut = true;
 				}
-
 				console.log("printPerimetersInsideOut: " + printPerimetersInsideOut );
 			}
 		} else if(slicerIsS3DMatched){
