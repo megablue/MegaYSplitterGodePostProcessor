@@ -5,6 +5,7 @@ G1 E-6 F4000; Retract to cold zone
 
 G91;
 G1 Z5 F4800; Lift the nozzle up for 5mm
+G90
 G1 X{X} Y{Y} F3000
 G90
 
