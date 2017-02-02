@@ -241,7 +241,8 @@ function firstPass(callback){
 		slicerSettingLinesLimit = 200,
 		slicerSettingStarted = false,
 		slicerSettingParsed = false,
-		extrudeMarker = /^G1.*E(\d{1,}.{0,1}\d{1,})/;
+		extrudeMarker = /^G1.*E(\d{1,}.{0,1}\d{1,})/,
+		extrudeZeroingMarker = /^G92 E0/;
 
 	var firstLayerDetected = false,
 		currentTool = -1,
@@ -254,6 +255,7 @@ function firstPass(callback){
 		layerIndex = -1,
 		infilling = false,
 		infillLength = 0,
+		totalInfillLength = 0,
 		infillCounted = false,
 		currentZ = 0;
 
@@ -286,8 +288,9 @@ function firstPass(callback){
 				infillCounted = false;
 				infilling = false;
 
-				if(infillLength > 0){
-					layersInfo[layerIndex].S3DInfillLength = (infillLength/IMULTIPLIER).toFixed(4);
+				if(totalInfillLength > 0){
+					//console.log(infillLengths);
+					layersInfo[layerIndex].S3DInfillLength = (totalInfillLength/IMULTIPLIER).toFixed(4);
 					//console.log("Layer: " + layerIndex + ", Purge-able Infill length: " + layersInfo[layerIndex].S3DInfillLength + ", Gcode:");
 					//console.log(layersInfo[layerIndex].S3DInfill);
 				}
@@ -302,6 +305,7 @@ function firstPass(callback){
 			//console.log("New layer detected! Layer Count: " + layerIndex);
 			layersInfo[layerIndex] = {toolChange: -1, toolChangeTotal: 0, S3DInfillLength: 0, S3DInfill: ''};			
 			infillLength = 0;
+			totalInfillLength = 0;
 		}
 
 		if(infillBeginsMatched){
@@ -314,12 +318,14 @@ function firstPass(callback){
 
 			if(layersInfo[layerIndex]){
 				extrudeMatched = line.match(extrudeMarker);
+				extrudeZeroMatched = line.match(extrudeZeroingMarker);
 
 				if(extrudeMatched){
-					//console.log("E: " + extrudeMatched[1]);
-					infillLength += extrudeMatched[1] * IMULTIPLIER;
+					infillLength = extrudeMatched[1] * IMULTIPLIER;
 					infillCounted = true;
 					//console.log("Line: " + lineCounter + ", E=" + extrudeMatched[1]);
+				} else if (extrudeZeroMatched){
+					totalInfillLength += infillLength;
 				}
 			}
 
