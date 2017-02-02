@@ -144,6 +144,14 @@ function processToolchange(){
 			if(layersInfo[currentLayer].S3DInfillLength){
 				fs.appendFileSync(fd, "; Restructured Infill begins\n");
 				fs.appendFileSync(fd, "; Infill e-length: " + layersInfo[currentLayer].S3DInfillLength + "\n");
+
+				if(maxToolChange > 0){
+					//insert the infill marker so that we can preview the infill as prime pillar
+					fs.appendFileSync(fd, "; prime pillar\n");
+				} else {
+					fs.appendFileSync(fd, "; infill\n");
+				}
+
 				fs.appendFileSync(fd, layersInfo[currentLayer].S3DInfill);
 				fs.appendFileSync(fd, "; Restructured Infill ends\n");
 			}
@@ -329,7 +337,10 @@ function firstPass(callback){
 				}
 			}
 
-			layersInfo[layerIndex].S3DInfill += line + "\n";
+			//skip the "; infill" identifier
+			if(!infillBeginsMatched){
+				layersInfo[layerIndex].S3DInfill += line + "\n";
+			}
 		}
 	}
 
