@@ -39,13 +39,14 @@ var	slicer = '',
 	toolChangeMarker = /^T(\d+)$/,
 	slicerSettingsTotalLines = 0,
 	layerHeight = 0,
-	firstLayerHeightPercentage = 0;
+	firstLayerHeightPercentage = 0,
+	firstLayerHeight = 0;
 
 var towerLocations = [];
 
 towerLocations = [
-	[xOffset= -85, yOffset = 0, rotation = 0],
-	[xOffset=  0, yOffset = 85, rotation = 90]
+	[xOffset= -45, yOffset = 0, rotation = 70],
+	[xOffset= -45, yOffset = 0, rotation = 180],
 ];
 
 function processToolchange(){
@@ -110,7 +111,7 @@ function processToolchange(){
 			towering = true;
 			var oldTool = currentTool < 0 ? layersInfo[currentLayer].toolChange : currentTool,
 				infillLength = layersInfo[currentLayer].S3DInfillLength,
-				isFirstLayer = currentLayer == 0,
+				isFirstLayer = currentZ == firstLayerHeight,
 				currentTool = layersInfo[currentLayer].toolChange,
 				toolChangeGcode = '',
 				tower,
@@ -142,6 +143,7 @@ function processToolchange(){
 
 			if(layersInfo[currentLayer].S3DInfillLength){
 				fs.appendFileSync(fd, "; Restructured Infill begins\n");
+				fs.appendFileSync(fd, "; Infill e-length: " + layersInfo[currentLayer].S3DInfillLength + "\n");
 				fs.appendFileSync(fd, layersInfo[currentLayer].S3DInfill);
 				fs.appendFileSync(fd, "; Restructured Infill ends\n");
 			}
@@ -397,7 +399,7 @@ function firstPass(callback){
 
 	lr.on('end', function () {
 		console.log('First-pass... Done!');
-		var firstLayerHeight = (layerHeight * firstLayerHeightPercentage / 100).toFixed(3);
+		firstLayerHeight = (layerHeight * firstLayerHeightPercentage / 100).toFixed(3);
 		pTower = new PrimeTower({layerHeight, firstLayerHeight});
 		
 		// for(var i = 0; i < layersInfo.length; i++){
