@@ -45,7 +45,7 @@ var	slicer = '',
 var towerLocations = [];
 
 towerLocations = [
-	[xOffset= -45, yOffset = 0, rotation = 70],
+	[xOffset= -25, yOffset = 0, rotation = 70],
 	[xOffset= -45, yOffset = 0, rotation = 180],
 ];
 
@@ -148,6 +148,9 @@ function processToolchange(){
 				if(maxToolChange > 0){
 					//insert the infill marker so that we can preview the infill as prime pillar
 					fs.appendFileSync(fd, "; prime pillar\n");
+					fs.appendFileSync(fd, "G92 E0\n");
+					fs.appendFileSync(fd, "G1 E9.0000 F1500\n");
+					fs.appendFileSync(fd, "G92 E0\n");
 				} else {
 					fs.appendFileSync(fd, "; infill\n");
 				}
