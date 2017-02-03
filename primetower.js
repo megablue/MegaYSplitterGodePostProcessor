@@ -5,13 +5,13 @@ var PrimeTower = function (overrides) {
 		filamentDiameter = 1.75,
 		nozzleDiameter = overrides.nozzleDiameter > 0 ? nozzleDiameter : 0.4;
 		linewidth = nozzleDiameter * 1.2,
-		flowMultipler = 1.05,
+		flowMultipler = 1.2,
 	    extrusionMultipler = 1,
 	    layerheight = overrides.layerheight > 0 ? overrides.layerheight : 0.2,
-	    firstlayerheight = overrides.firstlayerheight > 0 ? overrides.firstlayerheight : 0.2,
-	    currentlayerheight = overrides.firstlayerheight > 0 ? overrides.firstlayerheight : 0.2,
+	    firstLayerHeight = overrides.firstLayerHeight > 0 ? overrides.firstLayerHeight : 0.2,
+	    currentlayerheight = overrides.firstLayerHeight > 0 ? overrides.firstLayerHeight : 0.2,
 	    zOffset = overrides.zOffset ? overrides.zOffset : 0,
-	    towerwidth = 4.8, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
+	    towerwidth = 5.76, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
 	    towerlength = 90, //always fulfill the tower length
 	    bridges = 4,
 	    bridgehead = 0.96, //the minimum width of a bridgehead is 2x linewidth 
@@ -27,12 +27,12 @@ var PrimeTower = function (overrides) {
 	    centerY = 0,
 	    retraction = overrides.retraction ? overrides.retraction : 9,
 	    retractionSpeed = overrides.retractionSpeed > 0 ? overrides.retractionSpeed : 1800,
-	    prime = overrides.prime ? overrides.prime : 0,
+	    prime = overrides.prime ? overrides.prime : 1,
 	    wipe = 3,
 	    buffer = "";
 
     var filamentpermm = Math.pow(linewidth/2, 2) * Math.PI * 0.1 * flowMultipler;// (0.01662945).toFixed(5), //constant, based on .1 layer height
-    var minimumPurgeVolume = 73;
+    var minimumPurgeVolume = 90;
     var minimumPurgeLength =  Math.floor(minimumPurgeVolume / (Math.PI * Math.pow(filamentDiameter/2, 2))); //based on e3d v6 clone 1.75mm
 
 	if(typeof wipe != 'number' || wipe < 0){
@@ -269,7 +269,7 @@ var PrimeTower = function (overrides) {
 		function getExtrusionLength(distance){
 
 			if(isFirstLayer){
-				eLength = ((filamentpermm * firstlayerheight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
+				eLength = ((filamentpermm * firstLayerHeight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
 			} else {
 				eLength = ((filamentpermm * layerheight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
 			}
