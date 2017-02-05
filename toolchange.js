@@ -26,7 +26,7 @@ var consts = require('constants'),
     fs  = require("fs"), 
     LineByLineReader = require('line-by-line'),
     PrimeTower = require(path.resolve(__dirname, 'primetower.js')),
-    outputName = filename.split('.gcode')[0] + '_processed.gcode';
+    outputName = filename.split('.gcode')[0] + '.gcode';
 
 var	slicer = '',
 	layersInfo = [],
@@ -35,7 +35,7 @@ var	slicer = '',
 	towerStopsMarker = /^;/,    //S3D specific
 	infillBeginsMarker = /^; infill$/, //S3D specific
 	infillStopsMarker = /^;/,    //S3D specific
-	layerChangeMarker = /^; layer (\d+), Z = (\d+.\d+)/; //S3D specific
+	layerChangeMarker = /^; layer (\d+), Z = (\d+.{0,}\d{0,})/; //S3D specific
 	toolChangeMarker = /^T(\d+)$/,
 	slicerSettingsTotalLines = 0,
 	layerHeight = 0,
@@ -48,6 +48,12 @@ towerLocations = [
 	[xOffset= -25, yOffset = 0, rotation = 70],
 	[xOffset= -45, yOffset = 0, rotation = 180],
 ];
+
+var newName = filename.split('.gcode')[0] + '.org.gcode';
+
+fs.renameSync(filename, newName);
+
+filename = newName;
 
 function processToolchange(){
 	//var startupTemplate = fs.readFileSync('startup-template.txt').toString();
@@ -137,6 +143,7 @@ function processToolchange(){
 			}
 
 			if(maxToolChange > 0){
+				fs.appendFileSync(fd, "; Tower Index: " + currentTowerIndex + "\n");
 				fs.appendFileSync(fd, tower.gcode + "\n");
 				++currentTowerIndex;
 			}
@@ -170,6 +177,7 @@ function processToolchange(){
 			infilling = false;
 			towering = false;
 			++currentLayer;
+			fs.appendFileSync(fd, ";layerChangeMatched\n");
 			fs.appendFileSync(fd, line + "\n");
 		} else if(!towering && !infilling){
 
