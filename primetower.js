@@ -11,10 +11,11 @@ var PrimeTower = function (overrides) {
 	    firstLayerHeight = overrides.firstLayerHeight > 0 ? overrides.firstLayerHeight : 0.2,
 	    currentlayerheight = overrides.firstLayerHeight > 0 ? overrides.firstLayerHeight : 0.2,
 	    zOffset = overrides.zOffset ? overrides.zOffset : 0,
-	    towerwidth = 5.76, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
+	    towerwidth = 6.24, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
 	    towerlength = 90, //always fulfill the tower length
 	    bridges = 4,
 	    bridgehead = 0.96, //the minimum width of a bridgehead is 2x linewidth 
+	    minimumPurgeVolume = 120,
 	    speed = 3000,
 	    firslayerspeed = 1200,
 	    currentlayerspeed = 600,
@@ -27,12 +28,11 @@ var PrimeTower = function (overrides) {
 	    centerY = 0,
 	    retraction = overrides.retraction ? overrides.retraction : 9,
 	    retractionSpeed = overrides.retractionSpeed > 0 ? overrides.retractionSpeed : 1800,
-	    prime = overrides.prime ? overrides.prime : 1,
+	    prime = overrides.prime ? overrides.prime : 0,
 	    wipe = 3,
 	    buffer = "";
 
     var filamentpermm = Math.pow(linewidth/2, 2) * Math.PI * 0.1 * flowMultipler;// (0.01662945).toFixed(5), //constant, based on .1 layer height
-    var minimumPurgeVolume = 90;
     var minimumPurgeLength =  Math.floor(minimumPurgeVolume / (Math.PI * Math.pow(filamentDiameter/2, 2))); //based on e3d v6 clone 1.75mm
 
 	if(typeof wipe != 'number' || wipe < 0){
@@ -225,13 +225,15 @@ var PrimeTower = function (overrides) {
 			}
 		}
 
-		var wipeY = originY;
+		var wipeY1 = originY, wipeY2; 
 
 		if( Math.abs(originY - drawY) > Math.abs(towerlength + originY - drawY) ){
 			if(DEBUGMODE) console.log("closer to -Y");
-			wipeY = originY + towerlength - linewidth;
+			wipeY1 = originY + towerlength - linewidth;
+			wipeY2 = originY + linewidth;
 		} else {
-			wipeY = wipeY + linewidth;
+			wipeY1 = originY + linewidth;
+			wipeY2 = originY + towerlength - linewidth;
 			if(DEBUGMODE) console.log("closer to +Y");
 		}
 
@@ -241,8 +243,8 @@ var PrimeTower = function (overrides) {
 			for(var w=0; w < wipe; w++){
 				if(DEBUGMODE) console.log('wipe #' + w);
 				buffer += "G92 E0\n"; // zeroing e length.
-				drawUntil( originX, wipeY,  0, currentlayerspeed);
-				drawUntil( originX + towerwidth, wipeY,  smallRetraction, currentlayerspeed);
+				drawUntil( originX, wipeY1,  0, currentlayerspeed);
+				drawUntil( originX + towerwidth - linewidth, wipeY2,  smallRetraction, currentlayerspeed);
 			}
 		}
 		
