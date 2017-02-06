@@ -1,35 +1,35 @@
 ;Toolchange begins
-G90
-G92 E0
-G1 E-6 F4000; Retract to cold zone
+M104 S0; Turn off hotend
+G91; Relative Coordinates
+G92 E0; 
+G1 E-9 F1800; Fast Retract 9mm
+G1 Z1 F1800; Lift the nozzle up for 1mm
 
-G91;
-G1 Z5 F4800; Lift the nozzle up for 5mm
-G90
+G90; Absolute Coordinates
 G1 X{X} Y{Y} F3000
-G90
 
-G4 S4; Wait to reduce stringing
-G92 E0
-G1 E-3 F4000; Retract to cold zone
-G4 S2; Wait to reduce stringing
-G92 E0
-G1 E-4 F4000; Retract to cold zone
-G4 S2; Wait to reduce stringing
+G91; Relative Coordinates
+G92 E0; Zeroing Extruder length 
+G1 E9 F1800; Insert 9mm
 
-G92 E0
-G1 E-100.0 F1800; Retract to Y junction
+G1 E-15 F3000; Fast Retract 15mm
+
+G4 S10; Waits 10 seconds
+
+M104 S{TEMP}; set hotend temperature to {TEMP}C
+
+G1 E-105.0 F2000; Retract to Y junction
+
+M109 S{TEMP}; set and wait hotend temperature to reach {TEMP}C
+
+G91; Relative Coordinates
+G1 Z-1 F1800; Restore the nozzle height
 
 T{NEWTOOL}; Switch to new tool
 
 G90
 G92 E0
-
-G1 E110 F800; Feed filament into hotend
-
-G91;
-G1 Z-5 F1800; Restore the nozzle height
-
+G1 E120 F1800; Feed filament into hotend
 G90;
 G92 E0;
 ;Toolchange ends
