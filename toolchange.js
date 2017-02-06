@@ -220,13 +220,22 @@ function processToolchange(){
 	// }
 
 	function renderToolChange(template, variables){
-	    template = template.replace("\r\n", "\n");
+	    template = replaceAll(template, "\r\n", "\n");
 	    template = template.replace(/^\s*\n/gm, "\n");
-	    template = template.replace('{TEMP}', variables.temp);
-	    template = template.replace('{NEWTOOL}', variables.newtool);
-	    template = template.replace('{OLDTOOL}', variables.oldtool);
-	    template = template.replace('{X}', variables.x);
-	    template = template.replace('{Y}', variables.y);
+	    template = replaceAll(template, '{TEMP}', variables.temp);
+	    template = replaceAll(template, '{NEWTOOL}', variables.newtool);
+	    template = replaceAll(template, '{OLDTOOL}', variables.oldtool);
+	    template = replaceAll(template, '{X}', variables.x);
+	    template = replaceAll(template, '{Y}', variables.y);
+
+		function escapeRegExp(str) {
+		    return str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+		}
+
+	    function replaceAll(str, find, replace) {
+  			return str.replace(new RegExp(escapeRegExp(find), 'g'), replace);
+		}
+
 	    return template;
 	}
 
