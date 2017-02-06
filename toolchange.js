@@ -31,6 +31,7 @@ var consts = require('constants'),
 var	slicer = '',
 	layersInfo = [],
 	pTower = {},
+	toolTempMaker = /^M109 S(\d+) T(\d+)$/,
 	towerBeginsMarker = /^; prime pillar$/, //S3D specific
 	towerStopsMarker = /^;/,    //S3D specific
 	infillBeginsMarker = /^; infill$/, //S3D specific
@@ -40,7 +41,8 @@ var	slicer = '',
 	slicerSettingsTotalLines = 0,
 	layerHeight = 0,
 	firstLayerHeightPercentage = 0,
-	firstLayerHeight = 0;
+	firstLayerHeight = 0,
+	toolsTemp = [];
 
 var towerLocations = [];
 
@@ -138,7 +140,15 @@ function processToolchange(){
 						infillLength, forceSaving);
 
 			if(currentTool > -1){
-				toolChangeGcode = renderToolChange(toolchangeTemplate, currentTool, oldTool, tower.originXY[0], tower.originXY[1]);
+				var toolChangeVariables = {
+									'temp': toolsTemp[(currentTool).toString()],
+									'newtool': currentTool,
+									'oldtool': oldTool,
+									'x': tower.originXY[0],
+									'y': tower.originXY[1]
+				}
+
+				toolChangeGcode = renderToolChange(toolchangeTemplate, toolChangeVariables);
 				fs.appendFileSync(fd, toolChangeGcode + "\n");
 			}
 
@@ -209,13 +219,14 @@ function processToolchange(){
 	//     return template;
 	// }
 
-	function renderToolChange(template, newtool, oldtool, x, y){
+	function renderToolChange(template, variables){
 	    template = template.replace("\r\n", "\n");
 	    template = template.replace(/^\s*\n/gm, "\n");
-	    template = template.replace('{NEWTOOL}', newtool);
-	    template = template.replace('{OLDTOOL}', oldtool);
-	    template = template.replace('{X}', x);
-	    template = template.replace('{Y}', y);
+	    template = template.replace('{TEMP}', variables.temp);
+	    template = template.replace('{NEWTOOL}', variables.newtool);
+	    template = template.replace('{OLDTOOL}', variables.oldtool);
+	    template = template.replace('{X}', variables.x);
+	    template = template.replace('{Y}', variables.y);
 	    return template;
 	}
 
@@ -298,6 +309,16 @@ function firstPass(callback){
 		// 		newLayerMatched = false;
 		// 	}
 		// }
+
+		//startup gcode
+		if(layerIndex == -1){
+			var toolTempMatched = line.match(toolTempMaker);
+
+			if(toolTempMatched){
+				toolsTemp[toolTempMatched[2].toString()] = toolTempMatched[1];
+				console.log("Tool %d: %dC", toolsTemp.length-1, toolsTemp[(toolsTemp.length-1).toString()]);
+			}
+		}
 
 		if(newLayerMatched){
 			// console.log("new layer detected " + newLayerMatched[1] );
