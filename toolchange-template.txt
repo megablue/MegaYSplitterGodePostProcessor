@@ -2,7 +2,7 @@
 M104 S0; Turn off hotend
 G91; Relative Coordinates
 G92 E0; 
-G1 E-9 F1800; Fast Retract 9mm
+G1 E-12 F3200; Fast Retract 12mm
 G1 Z1 F1800; Lift the nozzle up for 1mm
 
 G90; Absolute Coordinates
@@ -10,26 +10,30 @@ G1 X{X} Y{Y} F3000
 
 G91; Relative Coordinates
 G92 E0; Zeroing Extruder length 
-G1 E9 F1800; Insert 9mm
-
-G1 E-15 F3000; Fast Retract 15mm
-
-G4 S10; Waits 10 seconds
 
 M104 S{TEMP}; set hotend temperature to {TEMP}C
 
-G1 E-105.0 F2000; Retract to Y junction
+G4 S1; Waits 1 seconds
+
+G1 E-103.0 F2000; Retract to Y junction
 
 M109 S{TEMP}; set and wait hotend temperature to reach {TEMP}C
 
 G91; Relative Coordinates
 G1 Z-1 F1800; Restore the nozzle height
 
+; Change stepper motor current on idling extruder
+;IFOLDTOOL=0 M907 A0.5
+;IFOLDTOOL=1 M907 B0.5
+; Restore stepper motor current on working extruder
+;IFNEWTOOL=0 M907 A1.4
+;IFNEWTOOL=1 M907 B1.4
+
 T{NEWTOOL}; Switch to new tool
 
 G90
 G92 E0
-G1 E120 F1800; Feed filament into hotend
+G1 E115 F1800; Feed filament into hotend
 G90;
 G92 E0;
 ;Toolchange ends
