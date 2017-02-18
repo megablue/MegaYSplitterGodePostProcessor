@@ -86,6 +86,8 @@ function processToolchange(){
 
 	if(maxToolChange > towerLocations.length){
 		console.log("Insufficient predefined tower locations detected. ");
+		console.log("If the gcode were produced by S3D, it is most likely caused by toolchange bugs in S3D.");
+		console.log("Otherwise, it is likely that there is a bug in my script.");
 		process.exit();
 	}
 
@@ -117,11 +119,11 @@ function processToolchange(){
 
 		if(towerBeginsMatched){
 			towering = true;
-			var oldTool = currentTool < 0 ? layersInfo[currentLayer].toolChange : currentTool,
-				infillLength = layersInfo[currentLayer].S3DInfillLength,
+
+			var infillLength = layersInfo[currentLayer].S3DInfillLength,
 				isFirstLayer = currentZ == firstLayerHeight,
-				currentTool = layersInfo[currentLayer].toolChange,
 				toolChangeGcode = '',
+				toolChange = layersInfo[currentLayer].toolChange,
 				tower,
 				forceSaving = false;
 
@@ -129,7 +131,7 @@ function processToolchange(){
 				forceSaving = false;
 			}
 
-			if(currentTool == -1){
+			if(toolChange == -1){
 				forceSaving = true;
 			}
 
@@ -139,17 +141,19 @@ function processToolchange(){
 						towerLocations[currentTowerIndex][2], 
 						infillLength, forceSaving);
 
-			if(currentTool > -1){
+			if(toolChange > -1){
 				var toolChangeVariables = {
-									'temp': toolsTemp[(currentTool).toString()],
-									'newtool': currentTool,
-									'oldtool': oldTool,
+									'temp': toolsTemp[(toolChange).toString()],
+									'newtool': toolChange,
+									'oldtool': currentTool,
 									'x': tower.originXY[0],
 									'y': tower.originXY[1]
 				}
 
 				toolChangeGcode = renderToolChange(toolchangeTemplate, toolChangeVariables);
 				fs.appendFileSync(fd, toolChangeGcode + "\n");
+
+				currentTool = toolChange;
 			}
 
 			if(maxToolChange > 0){
@@ -227,6 +231,16 @@ function processToolchange(){
 	    template = replaceAll(template, '{OLDTOOL}', variables.oldtool);
 	    template = replaceAll(template, '{X}', variables.x);
 	    template = replaceAll(template, '{Y}', variables.y);
+	   
+	    var regIfOldTool = new RegExp("^;IFOLDTOOL=" + variables.oldtool + " {0,}","gm"),
+	   		regIfNewTool = new RegExp("^;IFNEWTOOL=" + variables.newtool + " {0,}","gm"),
+	   		regIfNewTools = new RegExp(";IFNEWTOOL=.*\n","g"),
+	   		regIfOldTools = new RegExp(";IFOLDTOOL=.*\n","g");
+
+	   	template = template.replace(regIfOldTool, "");
+	    template = template.replace(regIfNewTool, "");
+	    template = template.replace(regIfNewTools, "");
+	    template = template.replace(regIfOldTools, "");
 
 		function escapeRegExp(str) {
 		    return str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
