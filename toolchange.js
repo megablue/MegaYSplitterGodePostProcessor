@@ -98,7 +98,7 @@ function processToolchange(){
 
 	lr.on('line', function (line) {
 
-		if(currentLine++ < slicerSettingsTotalLines-1){
+		if(++currentLine < slicerSettingsTotalLines){
 			if(DEBUGMODE) console.log(line);
 			fs.appendFileSync(fd, line + "\n");
 			return;
@@ -110,6 +110,19 @@ function processToolchange(){
 			toolChangeMatched = line.match(toolChangeMarker),
 			infillBeginsMatched = slicer == 'S3D' ? line.match(infillBeginsMarker) : false,
 			infillStopsMatched  = slicer == 'S3D' ? line.match(infillStopsMarker) : false;
+
+		//after the gibberish produced by the slicer
+		//this is supposed to be the first line of your startup gcode
+		if(currentLine == slicerSettingsTotalLines){
+			//find the first toolchange
+			var firstTool = findNextToolChangeLayer();
+
+			//inject the first tool change command prior the original startup gcode.
+			//we will ignore the first toolchange produced by s3d
+			//hence this will allow us to specific the first tool to prime
+			//during startup
+			line = 'T' + firstTool + "\n" + line;
+		}
 
 		if(infillBeginsMatched){
 			infilling = true;
