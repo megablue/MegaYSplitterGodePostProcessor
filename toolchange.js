@@ -30,8 +30,7 @@ var consts = require('constants'),
 
 var	slicer = '',
 	layersInfo = [],
-	pTower = {},
-	toolTempMaker = /^M109 S(\d+) T(\d+)$/,
+	toolTempMarker = /^M109 S(\d+) T(\d+)$/,
 	towerBeginsMarker = /^; prime pillar$/, //S3D specific
 	towerStopsMarker = /^;/,    //S3D specific
 	infillBeginsMarker = /^; infill$/, //S3D specific
@@ -42,13 +41,15 @@ var	slicer = '',
 	layerHeight = 0,
 	firstLayerHeightPercentage = 0,
 	firstLayerHeight = 0,
+	defaultSpeed = 3000,
+	xyTravelSpeed = 4800,
 	toolsTemp = [];
 
 var towerLocations = [];
 
 towerLocations = [
-	[xOffset= -25, yOffset = 0, rotation = 70],
-	[xOffset= -45, yOffset = 0, rotation = 180],
+	{'offsetX': -25, 'offsetY': 0, 'rotation': 70},
+	{'offsetX': -45, 'offsetY':0, 'rotation': 180},
 ];
 
 var newName = filename.split('.gcode')[0] + '.org.gcode';
@@ -59,6 +60,7 @@ filename = newName;
 
 function processToolchange(){
 	//var startupTemplate = fs.readFileSync('startup-template.txt').toString();
+	var pTower = new PrimeTower(overrides = {'defaultSpeed': defaultSpeed});
 	var toolchangeTemplate = fs.readFileSync(path.resolve(__dirname,'toolchange-template.txt')).toString();
 	var fd = fs.openSync(outputName, 'w');
 	var buffer = '';
@@ -78,7 +80,9 @@ function processToolchange(){
 		maxToolChange = -1,
 		currentLine = 0,
 		infilling = false,
-		towering = false;
+		towering = false,
+		towerBasePrinted = false,
+		startupToolTempMatching = false;
 
 	//find out how many prime towers do we need
 	maxToolChange = findMaxToolChange();
@@ -111,17 +115,27 @@ function processToolchange(){
 			infillBeginsMatched = slicer == 'S3D' ? line.match(infillBeginsMarker) : false,
 			infillStopsMatched  = slicer == 'S3D' ? line.match(infillStopsMarker) : false;
 
-		//after the gibberish produced by the slicer
-		//this is supposed to be the first line of your startup gcode
-		if(currentLine == slicerSettingsTotalLines){
-			//find the first toolchange
-			var firstTool = findNextToolChangeLayer();
 
-			//inject the first tool change command prior the original startup gcode.
-			//we will ignore the first toolchange produced by s3d
-			//hence this will allow us to specific the first tool to prime
-			//during startup
-			line = 'T' + firstTool + "\n" + line;
+		//after the gibberish produced by the slicer
+		//this is supposed to be part of the startup gcode
+		if(currentLine > slicerSettingsTotalLines && currentLayer == -1){
+			var toolTempMatched = line.match(toolTempMarker);
+
+			if(toolTempMatched){
+				startupToolTempMatching = true;
+			}
+
+			if(startupToolTempMatching && !toolTempMatched){
+				//find the first toolchange
+				var firstTool = findNextToolChangeLayer();
+
+				//inject the first tool change command prior the original startup gcode.
+				//we will ignore the first toolchange produced by s3d
+				//hence this will allow us to specific the first tool to prime
+				//during startup
+				line = 'T' + firstTool + "\n" + line;
+				startupToolTempMatching = false;
+			}
 		}
 
 		if(infillBeginsMatched){
@@ -134,25 +148,43 @@ function processToolchange(){
 			towering = true;
 
 			var infillLength = layersInfo[currentLayer].S3DInfillLength,
-				isFirstLayer = currentZ == firstLayerHeight,
+				isBaseLayer = towerBasePrinted == false,
 				toolChangeGcode = '',
 				toolChange = layersInfo[currentLayer].toolChange,
 				tower,
-				forceSaving = false;
+				forceSaving = false,
+				extraPrime = 0,
+				forceExtraPrime = false;
 
-			if(isFirstLayer){
+			if(isBaseLayer){
 				forceSaving = false;
 			}
 
-			if(toolChange == -1){
+			if(!isBaseLayer && toolChange == -1){
 				forceSaving = true;
 			}
 
-			tower = pTower.render(isFirstLayer, currentZ, 
-						towerLocations[currentTowerIndex][0], 
-						towerLocations[currentTowerIndex][1], 
-						towerLocations[currentTowerIndex][2], 
-						infillLength, forceSaving);
+			if(toolChange == -1){
+				forceExtraPrime = true;
+				extraPrime = 9;
+			}
+
+			var layerThickness = isBaseLayer ? currentZ : layerHeight;
+			var renderOverrides = {
+				'isBaseLayer': isBaseLayer,
+				'currentZ': currentZ,
+				'offsetX': towerLocations[currentTowerIndex].offsetX,
+				'offsetY': towerLocations[currentTowerIndex].offsetY,
+				'rotation': towerLocations[currentTowerIndex].rotation,
+				'infillableFilamentLength': infillLength,
+				'forceSaving': forceSaving,
+				'layerThickness': layerThickness,
+				'xyTravelSpeed': xyTravelSpeed,
+				'forceExtraPrime': forceExtraPrime,
+				'extraPrime': extraPrime
+			}
+
+			tower = pTower.render(renderOverrides);
 
 			if(toolChange > -1){
 				var toolChangeVariables = {
@@ -173,6 +205,10 @@ function processToolchange(){
 				fs.appendFileSync(fd, "; Tower Index: " + currentTowerIndex + "\n");
 				fs.appendFileSync(fd, tower.gcode + "\n");
 				++currentTowerIndex;
+
+				if(isBaseLayer){
+					towerBasePrinted = true;
+				}
 			}
 
 			if(layersInfo[currentLayer].S3DInfillLength){
@@ -183,14 +219,16 @@ function processToolchange(){
 					//insert the infill marker so that we can preview the infill as prime pillar
 					fs.appendFileSync(fd, "; prime pillar\n");
 					fs.appendFileSync(fd, "G92 E0\n");
-					fs.appendFileSync(fd, "G1 E9.0000 F1500\n");
-					fs.appendFileSync(fd, "G92 E0\n");
+					// fs.appendFileSync(fd, "G1 E9.0000 F1500\n");
+					// fs.appendFileSync(fd, "G92 E0\n");
 				} else {
 					fs.appendFileSync(fd, "; infill\n");
 				}
 
 				fs.appendFileSync(fd, layersInfo[currentLayer].S3DInfill);
 				fs.appendFileSync(fd, "; Restructured Infill ends\n");
+
+				layersInfo[currentLayer].S3DInfillPrinted = true;
 			}
 
 		} else if(towerStopsMatched){
@@ -198,6 +236,15 @@ function processToolchange(){
 		}
 
 		if(layerChangeMatched){
+			//spill out the rest of the missing infill
+			if(currentLayer > 0 && !layersInfo[currentLayer].S3DInfillPrinted && layersInfo[currentLayer].S3DInfillLength > 0){
+				fs.appendFileSync(fd, "; Restructured Infill begins\n");
+				fs.appendFileSync(fd, "; infill\n");
+				fs.appendFileSync(fd, layersInfo[currentLayer].S3DInfill);
+				fs.appendFileSync(fd, "; Restructured Infill ends\n");
+				layersInfo[currentLayer].S3DInfillPrinted = true;
+			}
+
 			currentZ = layerChangeMatched[2] * 1;
 			maxToolChange = findMaxToolChange();
 			currentTowerIndex = 0;
@@ -348,7 +395,7 @@ function firstPass(callback){
 
 		//startup gcode
 		if(layerIndex == -1){
-			var toolTempMatched = line.match(toolTempMaker);
+			var toolTempMatched = line.match(toolTempMarker);
 
 			if(toolTempMatched){
 				toolsTemp[toolTempMatched[2].toString()] = toolTempMatched[1];
@@ -369,6 +416,9 @@ function firstPass(callback){
 					layersInfo[layerIndex].S3DInfillLength = (totalInfillLength/IMULTIPLIER).toFixed(4);
 					//console.log("Layer: " + layerIndex + ", Purge-able Infill length: " + layersInfo[layerIndex].S3DInfillLength + ", Gcode:");
 					//console.log(layersInfo[layerIndex].S3DInfill);
+				} else {
+					//always true when there is no infill to print
+					layersInfo[layerIndex].S3DInfillPrinted = true;
 				}
 			}
 
@@ -379,7 +429,7 @@ function firstPass(callback){
 			}
 
 			//console.log("New layer detected! Layer Count: " + layerIndex);
-			layersInfo[layerIndex] = {toolChange: -1, toolChangeTotal: 0, S3DInfillLength: 0, S3DInfill: ''};			
+			layersInfo[layerIndex] = {'toolChange': -1, 'toolChangeTotal': 0, 'S3DInfillLength': 0, 'S3DInfill': '', 'S3DInfillPrinted': false};			
 			infillLength = 0;
 			totalInfillLength = 0;
 		}
@@ -440,6 +490,14 @@ function firstPass(callback){
 				console.log("First layerHeight: " + (layerHeight * firstLayerHeightPercentage / 100).toFixed(3) );
 			}
 
+			if(slicerSettingMatched[1] == 'defaultSpeed'){
+				defaultSpeed = slicerSettingMatched[2] * 1;
+			} 			
+
+			if(slicerSettingMatched[1] == 'rapidXYspeed'){
+				xyTravelSpeed = slicerSettingMatched[2] * 1;
+			} 
+
 			if(slicerSettingMatched[1] == 'printPerimetersInsideOut'){
 				
 				if(slicerSettingMatched[2] * 1 == 1){
@@ -484,9 +542,7 @@ function firstPass(callback){
 
 	lr.on('end', function () {
 		console.log('First-pass... Done!');
-		firstLayerHeight = (layerHeight * firstLayerHeightPercentage / 100).toFixed(3);
-		pTower = new PrimeTower({layerHeight, firstLayerHeight});
-		
+		firstLayerHeight = (layerHeight * firstLayerHeightPercentage / 100).toFixed(3);		
 		// for(var i = 0; i < layersInfo.length; i++){
 
 		// 	if(layersInfo[i].toolChangeTotal > 0 && layersInfo[i].S3DInfill != ''){

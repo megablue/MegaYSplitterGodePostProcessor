@@ -7,18 +7,18 @@ var PrimeTower = function (overrides) {
 		linewidth = nozzleDiameter * 1.2,
 		flowMultipler = 1.2,
 	    extrusionMultipler = 1,
-	    layerheight = overrides.layerheight > 0 ? overrides.layerheight : 0.2,
-	    firstLayerHeight = overrides.firstLayerHeight > 0 ? overrides.firstLayerHeight : 0.2,
+	    baseLayerExtrusionMultipler = 1.2,
 	    currentlayerheight = overrides.firstLayerHeight > 0 ? overrides.firstLayerHeight : 0.2,
 	    zOffset = overrides.zOffset ? overrides.zOffset : 0,
-	    towerwidth = 6.24, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
+	    towerwidth = 5.6, //minimum tower width, if the total extrusion length cannot be fulfilled, program will increase the width to accommodate 
 	    towerlength = 90, //always fulfill the tower length
 	    bridges = 4,
-	    bridgehead = 0.96, //the minimum width of a bridgehead is 2x linewidth 
-	    minimumPurgeVolume = 120,
-	    speed = 3000,
-	    firslayerspeed = 1200,
-	    currentlayerspeed = 600,
+	    bridgehead = 1.92, //the minimum width of a bridgehead is 2x linewidth 
+	    minimumPurgeVolume = 150,
+	    defaultSpeed = overrides.defaultSpeed ? overrides.defaultSpeed : 3000,
+	    firslayerspeed = 900,
+	    slowLayer = 1, //layer before 1mm will be slowed
+	    currentlayerspeed = 900,
 	    centeriszero = true,
 	    bedXsize = 180,
 	    bedYsize = 180,
@@ -26,10 +26,11 @@ var PrimeTower = function (overrides) {
 	    originY = 0,
 	    centerX = 0,
 	    centerY = 0,
-	    retraction = overrides.retraction ? overrides.retraction : 9,
+	    retraction = overrides.retraction ? overrides.retraction : 3,
 	    retractionSpeed = overrides.retractionSpeed > 0 ? overrides.retractionSpeed : 1800,
 	    prime = overrides.prime ? overrides.prime : 0,
-	    wipe = 3,
+	    wipe = 2,
+	    wipeSpeed = 4800,
 	    buffer = "";
 
     var filamentpermm = Math.pow(linewidth/2, 2) * Math.PI * 0.1 * flowMultipler;// (0.01662945).toFixed(5), //constant, based on .1 layer height
@@ -59,13 +60,31 @@ var PrimeTower = function (overrides) {
 		originY = bedYsize/2 - originY;
 	}
 
-	this.render = function(isFirstLayer, currentZ, offsetX, offsetY, rotation, infillableFilamentLength, forceSaving){
-		buffer = ";Primetower begins\n; prime pillar\n";
+	this.render = function(renderOverrides){
+		var isBaseLayer = renderOverrides.isBaseLayer, 
+			currentZ = renderOverrides.currentZ, 
+			offsetX = renderOverrides.offsetX, 
+			offsetY = renderOverrides.offsetY, 
+			rotation = renderOverrides.rotation, 
+			infillableFilamentLength = renderOverrides.infillableFilamentLength, 
+			forceSaving = renderOverrides.forceSaving,
+			layerThickness = renderOverrides.layerThickness,
+			forceExtraPrime = renderOverrides.forceExtraPrime,
+			extraPrime = renderOverrides.extraPrime,
+			xyTravelSpeed = renderOverrides.xyTravelSpeed ? renderOverrides.xyTravelSpeed : 4800;
 
-		if(isFirstLayer){
+		buffer = ";Prime tower begins\n; prime pillar\n";
+
+		if(isBaseLayer){
 			currentlayerspeed = firslayerspeed;
+			layerThickness = layerThickness * baseLayerExtrusionMultipler;
 		} else {
-			currentlayerspeed = speed;
+			currentlayerspeed = defaultSpeed;
+
+			if(currentZ < slowLayer){
+				currentlayerspeed = Math.floor(defaultSpeed * currentZ / slowLayer);
+				layerThickness = layerThickness * baseLayerExtrusionMultipler;
+			}			
 		}
 
 		currentlayerheight = ((currentZ + zOffset) * 1).toFixed(2);
@@ -85,17 +104,27 @@ var PrimeTower = function (overrides) {
 			savingMode = true;
 		}
 
-		if(isFirstLayer){
+		if(isBaseLayer || currentZ < slowLayer){
 			filamentToBePurged = minimumPurgeLength;
 			savingMode = true;
 		}
 
+		var totalPrime = prime;
+
+		if(forceExtraPrime){
+			totalPrime += extraPrime;
+		}
+
 		buffer += "G92 E0\n"; // zeroing e length.
 		buffer += 'G1 Z' + currentlayerheight + " F1500\n"; // first layer z height
-		buffer += "G1 E" + prime + " F1500\n"; // prime a little
+		buffer += "G1 E" + totalPrime + " F1500\n"; // prime a little
 		buffer += "G92 E0\n"; // zeroing e length.
 
-		drawUntil((originX + towerwidth).toFixed(3), originY, 0, 1800, "init point");
+		if(currentZ < slowLayer){
+			buffer += "M106 S0\n";
+		}
+
+		drawUntil((originX + towerwidth).toFixed(3), originY, extrusion = 0, xyTravelSpeed, "init point");
 
 		var drawX = 0,
 			drawY = 0,
@@ -111,7 +140,7 @@ var PrimeTower = function (overrides) {
 					drawY = ((c * linewidth + bridgeLength * i + i * bridgehead + originY - linewidth).toFixed(3)),
 					drawE = (e).toFixed(5);
 					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
-					e += getExtrusionLength(towerwidth);
+					e += getExtrusionLength(towerwidth, layerThickness);
 
 					if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 					drawX = ((originX).toFixed(3)),
@@ -120,7 +149,7 @@ var PrimeTower = function (overrides) {
 					drawUntil(drawX, drawY, drawE, currentlayerspeed, "b=" + b + ", i=" + i + ", c=" + c);
 
 					if( !(i == totalBridgeHeads - 1 && b == bridgehead - linewidth)){
-						e += getExtrusionLength(towerwidth);
+						e += getExtrusionLength(towerwidth, layerThickness);
 					}
 
 					if(b == bridgehead){
@@ -144,20 +173,20 @@ var PrimeTower = function (overrides) {
 				drawY = ((y + originY).toFixed(3)),
 				drawE = (e).toFixed(5);
 				drawUntil(drawX, drawY, drawE, currentlayerspeed, "set starting point");
-				e += getExtrusionLength(towerwidth);	
+				e += getExtrusionLength(towerwidth, layerThickness);	
 			}
 
 			if(x==linewidth && !savingMode){
 				// console.log("here");
 				// fs.appendFileSync(fd, ";Here\n");
-				e += getExtrusionLength(towerwidth);
+				e += getExtrusionLength(towerwidth, layerThickness);
 			    if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 				drawX = ((x + originX + towerwidth).toFixed(3)),
 				drawY = ((y + originY + towerlength - linewidth).toFixed(3)),
 				drawE = (e).toFixed(5);
 				drawUntil(drawX - linewidth *2, drawY, drawE, currentlayerspeed, "draw second outline");
 				drawUntil(drawX-towerwidth, drawY, drawE, currentlayerspeed);
-				e += getExtrusionLength(towerlength);
+				e += getExtrusionLength(towerlength, layerThickness);
 			}
 
 			if(!savingMode){
@@ -167,7 +196,7 @@ var PrimeTower = function (overrides) {
 
 				drawUntil(gotoX, gotoY, gotoE, currentlayerspeed);
 
-				e += getExtrusionLength(towerlength);
+				e += getExtrusionLength(towerlength, layerThickness);
 				if(DEBUGMODE) console.log("E length: " + eLength + ", Absolute E: " + e.toFixed(5));
 
 				drawX = ((x + originX).toFixed(3)),
@@ -182,7 +211,7 @@ var PrimeTower = function (overrides) {
 						drawE = (e).toFixed(5);
 						drawUntil(drawX, drawY, drawE, currentlayerspeed, "reversing start");
 
-						e += getExtrusionLength(bridgeLength + linewidth);
+						e += getExtrusionLength(bridgeLength + linewidth, layerThickness);
 
 						drawX = ((x + originX).toFixed(3)),
 						drawY = ((bridgeLength * (i-1) + bridgehead * (i) + originY - linewidth/2).toFixed(3)),
@@ -199,7 +228,7 @@ var PrimeTower = function (overrides) {
 						drawE = (e).toFixed(5);
 						drawUntil(drawX, drawY, drawE, currentlayerspeed);
 
-						e += getExtrusionLength(bridgeLength + linewidth);
+						e += getExtrusionLength(bridgeLength + linewidth, layerThickness);
 
 						drawX = ((x + originX).toFixed(3)),
 						drawY = ((bridgeLength * (i+1) + bridgehead * (i+1) + originY + linewidth/2).toFixed(3)),
@@ -218,7 +247,7 @@ var PrimeTower = function (overrides) {
 			if(e > filamentToBePurged && x *1 >= (towerwidth - linewidth) * 1){
 				if(DEBUGMODE) console.log("end");
 
-				if(isFirstLayer){
+				if(isBaseLayer){
 					towerwidth = x.toFixed(2) * 1 + linewidth;
 					if(DEBUGMODE) console.log("towerwidth: " + towerwidth);
 				}
@@ -238,18 +267,18 @@ var PrimeTower = function (overrides) {
 		}
 
 
-		if(wipe > 1){
+		if(wipe > 0){
 			var smallRetraction = (retraction / wipe) * -1;
 			for(var w=0; w < wipe; w++){
 				if(DEBUGMODE) console.log('wipe #' + w);
 				buffer += "G92 E0\n"; // zeroing e length.
-				drawUntil( originX, wipeY1,  0, currentlayerspeed);
-				drawUntil( originX + towerwidth - linewidth, wipeY2,  smallRetraction, currentlayerspeed);
+				drawUntil( originX, wipeY1,  0, wipeSpeed);
+				drawUntil( originX + towerwidth - linewidth, wipeY2,  smallRetraction, wipeSpeed);
 			}
 		}
 		
 		buffer += "G92 E0\n";
-		buffer += ";Primetower ends\n";
+		buffer += ";Prime tower ends\n";
 
 		return {gcode: buffer, originXY: applyTransfromations(originX, originY)};
 
@@ -265,17 +294,16 @@ var PrimeTower = function (overrides) {
 			x = (xy[coordX = 0]);
 			y = (xy[coordY = 1]);
 
-			buffer += 'G1 X' + x + ' Y' + y + ' E' + e + " F"+ speed + comment + "\n";
-		}
-
-		function getExtrusionLength(distance){
-
-			if(isFirstLayer){
-				eLength = ((filamentpermm * firstLayerHeight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
+			if(e == 0){
+				buffer += 'G1 X' + x + ' Y' + y + " F"+ speed + comment + "\n";
 			} else {
-				eLength = ((filamentpermm * layerheight / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
+				buffer += 'G1 X' + x + ' Y' + y + ' E' + e + " F"+ speed + comment + "\n";
 			}
 			
+		}
+
+		function getExtrusionLength(distance, layerThickness){
+			eLength = ((filamentpermm * layerThickness / 0.1 * Math.abs(distance) * extrusionMultipler).toFixed(5)) * 1;
 			return eLength;
 		}
 
